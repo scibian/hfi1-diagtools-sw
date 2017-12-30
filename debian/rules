@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+#
+# Copyright (c)2016 System Fabric Works, Inc. All Rights Reserved,
+#
+
+export CFLAGS=
+
+%:
+	dh $@ --parallel
+
+override_dh_install:
+	dh_install
+	chmod a-x `find debian/hfi1-diagtools-sw/usr/share/hfi-diagtools-sw/test_packets/ -type f -exec grep -L bin/sh {} \;`
+
+
+
+

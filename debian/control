@@ -1,0 +1,14 @@
+Source: hfi1-diagtools-sw
+Maintainer: Brian T. Smith <bsmith@systemfabricworks.com>
+Section: utils
+Priority: extra
+Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 9), libpsm2-dev (>= 10.2.235-1-1ifs+c9u6)
+
+Package: hfi1-diagtools-sw
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libpsm2, pciutils
+Description: Intel HFI1 User Tools
+ User utilities for the Intel Host Fabric Interface
+
+

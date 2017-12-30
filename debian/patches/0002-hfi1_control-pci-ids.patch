@@ -1,0 +1,39 @@
+Description: Correct hfi1_control's detection of pci.ids
+ hfi1_control uses the package manager to find the location of pci.ids.
+ However, as shipped, it uses looks in hwdata instead of pciutils.
+ .
+ hfi1-diagtools-sw (0.8-68-1ifs) UNRELEASED; urgency=medium
+ .
+    * Import hfi1-diagtools-sw 0.8-68 from IFS 10.5.0.0.153 upstream.
+    * Correct hfi1_control's detection of pci.ids.
+ .
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Copyright: 2017 System Fabric Works, Inc. All Rights Reserved.
+Forwarded: no
+Last-Update: <2017-09-29>
+
+---
+
+--- a/scripts-enduser/hfi1_control
++++ b/scripts-enduser/hfi1_control
+@@ -1,4 +1,4 @@
+-#! /bin/bash
++#!/bin/bash
+ # This file is provided under a dual BSD/GPLv2 license.  When using or
+ # redistributing this file, you may do so under either license.
+ #
+@@ -513,11 +513,11 @@
+ 
+ 	# find path to pci.ids by querying hwdata package information
+ 	if [ "$(cat /etc/issue | egrep -i 'ubuntu|debian')" ]; then
+-	    cmd="dpkg-query -L"
++	    cmd="dpkg-query -L pciutils"
+ 	else
+-	    cmd="rpm -ql"
++	    cmd="rpm -ql hwdata"
+ 	fi
+-	pci_ids=$(${cmd} hwdata | grep pci.ids)
++	pci_ids=$(${cmd} | grep pci.ids)
+ 	# if path was not found in package, use default path
+ 	if [ -z ${pci_ids} ]; then
+ 	    pci_ids=${default_pci_ids}

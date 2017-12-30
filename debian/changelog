@@ -1,0 +1,89 @@
+hfi1-diagtools-sw (0.8.68-1ifs+c9u2) calibre9; urgency=medium
+
+  * With libpsm2-dev (>= 10.2.235-1-1ifs+c9u6), ifs-kernel-updates-dev
+    is not needed anymore to build hfi1-diagtools-sw.
+
+ -- Mehdi Dogguy <mehdi.dogguy@edf.fr>  Sun, 31 Dec 2017 00:37:54 +0100
+
+hfi1-diagtools-sw (0.8.68-1ifs+c9u1) calibre9; urgency=medium
+
+  * Re-import same package but with fixed version 0.8.68-1ifs+c9u1
+
+ -- Mehdi Dogguy <mehdi.dogguy@edf.fr>  Sun, 31 Dec 2017 00:20:04 +0100
+
+hfi1-diagtools-sw (0.8-68-1ifs+c9u3) calibre9; urgency=medium
+
+  * Add ifs-kernel-updates-dev to Build-Depends
+
+ -- Mehdi Dogguy <mehdi.dogguy@edf.fr>  Tue, 19 Dec 2017 13:50:38 +0100
+
+hfi1-diagtools-sw (0.8-68-1ifs+c9u2) calibre9; urgency=medium
+
+  * Fix debian/rules by adding #! line
+
+ -- Mehdi Dogguy <mehdi.dogguy@edf.fr>  Tue, 19 Dec 2017 13:42:03 +0100
+
+hfi1-diagtools-sw (0.8-68-1ifs+c9u1) calibre9; urgency=medium
+
+  * Build for Calibre9
+  * Add a debian/gbp.conf file
+
+ -- Mehdi Dogguy <mehdi.dogguy@edf.fr>  Tue, 19 Dec 2017 13:30:00 +0100
+
+hfi1-diagtools-sw (0.8-68-1ifs) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw 0.8-68 from IFS 10.5.0.0.153 upstream.
+   * Correct hfi1_control's detection of pci.ids.
+   * Correct manpage errors.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 29 Sep 2017 13:19:51 -0500
+
+hfi1-diagtools-sw (0.8-53-1ifs) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw 0.8-53 from IFS 10.4.2.0.7 upstream.
+   * Fixed 222: hfi_control not reporting OPA version.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 19 Jul 2017 13:25:27 -0500
+
+hfi1-diagtools-sw (0.8-39-1ifs) UNRELEASED; urgency=medium
+
+   * Convert to quilt format. Corrected version.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Thu, 08 Jun 2017 12:51:11 -0500
+
+hfi1-diagtools-sw (0.8.39) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw-0.8.39 from IFS 10.3.1.0.20.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Tue, 07 Feb 2017 14:32:35 -0600
+
+hfi1-diagtools-sw (0.8.37.1) UNRELEASED; urgency=medium
+
+   * Updated required version of libpsm2 to 10.2.63.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 25 Jan 2017 16:20:35 -0600
+
+hfi1-diagtools-sw (0.8.37) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw-0.8-37 from IFS 10.3.0.0.81 upstream
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 16 Dec 2016 19:14:35 -0600
+
+hfi1-diagtools-sw (0.8.27) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw-0.8-27 from IFS 10.2.0.0.158 upstream
+   * hfi1-utils is no longer included as a package.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 30 Sep 2016 17:21:35 -0500
+
+hfi1-diagtools-sw (0.8) UNRELEASED; urgency=medium
+
+  * Import hfi1-diagtools-sw-0.8-13 from IFS 10.1.0.0.145 upstream
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 10 Jun 2016 16:37:35 -0500
+
+hfi1-diagtools-sw (0.7) UNRELEASED; urgency=medium
+
+  * Import hfi1-diagtools-sw-0.8-13 from IFS 10.1.0.0.145 upstream
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Mon, 14 Mar 2016 12:26:35 -0500

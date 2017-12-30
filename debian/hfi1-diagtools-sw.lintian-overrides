@@ -1,0 +1,2 @@
+# hfi1_control fails syntax check, false positive due to extglob
+shell-script-fails-syntax-check usr/bin/hfi1_control
