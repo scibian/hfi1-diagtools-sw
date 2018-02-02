@@ -1,22 +1,16 @@
 Description: Correct version and release computation in Makefile
  Makefile uses git to determine the version and release. Use values
  from the spec file, instead.
- .
- hfi1-diagtools-sw (0.8-39-1ifs) UNRELEASED; urgency=medium
- .
-    * Convert to quilt format. Corrected version.
 Author: Brian T. Smith <bsmith@systemfabricworks.com>
-Copyright: 2017 System Fabric Works, Inc. All Rights Reserved.
 Forwarded: no
-Last-Update: <2017-06-08>
-
+Last-Update: <2017-12-14>
 ---
-
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/Makefile
 +++ b/Makefile
-@@ -10,12 +10,19 @@
- RPM_NAME ?= hfi1-diagtools-sw
- BASEVERSION := 0.1
+@@ -12,12 +12,19 @@
+ 
+ DISTRO_NAME := $(shell if [ -e /etc/os-release ]; then sed -n '/^ID=/'p /etc/os-release | sed 's/ID=//g'; elif [ -n $(cat /etc/redhat-release | grep "6.7") ]; then  echo "rhel67"; fi)
  
 +
 +VERSION=$(shell grep Version: hfi1-diagtools-sw.spec | cut -f2 -d: | sed 's/ //')
@@ -36,26 +30,20 @@ Last-Update: <2017-06-08>
  #
  
  # Concatenated version and release
-@@ -30,7 +37,7 @@
+@@ -35,7 +42,7 @@
  SUBDIRS:= testlib utils tests man scripts-enduser
  endif
  
 -NOSHIP_SUBDIRS := hfidiags itp doc wfr_oem_tool
 +NOSHIP_SUBDIRS := hfidiags itp doc
- 
- # set reasonable defaults
- export TOP := $(shell pwd)
-@@ -63,13 +70,11 @@
+ ALL_DISTROLIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/rhel67.*\" -prune -o
+ RHEL_67LIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/default.*\" -prune -o
+ EXCLUDE_LIB := $(shell if [[ ${DISTRO_NAME} == "rhel67" ]]; then echo ${RHEL_67LIB}; elif [[ ${DISTRO_NAME} == "rhel" ||  ${DISTRO_NAME} == "sles" ]]; then echo ${ALL_DISTROLIB}; fi)
+@@ -72,7 +79,6 @@
  
  clean:
  	$(MAKE) -C man $@
 -	$(MAKE) -C wfr_oem_tool $@
  	rm -rf build/targ-* build/topdrivers build/drivers
- 	rm -f include/git_version.h
  
  package-distclean:
- 	rm -rf build/rpms* build/*.spec cscope.* cscope
--	rm -rf $(RPM_NAME).spec
- 	rm -rf $(RPM_NAME)-${VERSION_RELEASE}.tar.gz
- 
- distclean: clean

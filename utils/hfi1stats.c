@@ -73,7 +73,6 @@
 #include <signal.h>
 #include <dirent.h>
 #include <ctype.h>
-#include "git_version.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 1024

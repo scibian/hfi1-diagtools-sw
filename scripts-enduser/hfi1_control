@@ -4,7 +4,7 @@
 #
 # GPL LICENSE SUMMARY
 #
-#  Copyright (c) 2013-2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2013-2015, 2017 Intel Corporation, All rights reserved.
 #  Copyright (C) 2006, 2007, 2008 QLogic Corporation, All rights reserved.
 #  Copyright (c) 2006 PathScale, Inc. All rights reserved.
 #
@@ -19,7 +19,7 @@
 #
 # BSD LICENSE
 #
-#  Copyright (c) 2013-2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2013-2015, 2017 Intel Corporation, All rights reserved.
 #  Copyright (C) 2006, 2007, 2008 QLogic Corporation, All rights reserved.
 #  Copyright (c) 2006 PathScale, Inc. All rights reserved.
 #
@@ -93,14 +93,24 @@ function error() {
 # Tracing related functions
 function enable_trace_event() {
     local event="${1}"
-    echo 1 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
-    return ${?}
+    if validate_trace_event ${event} event; then
+    	echo 1 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
+    	return ${?}
+    else
+	error "Unknown tracing event '${event}'!"
+	return 1
+    fi
 }
 
 function disable_trace_event() {
     local event="${1}"
-    echo 0 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
-    return ${?}
+    if validate_trace_event ${event} event; then
+    	echo 0 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
+    	return ${?}
+    else
+	error "Unknown tracing event '${event}'!"
+	return 1
+    fi
 }
 
 function enable_trace() {
@@ -120,7 +130,7 @@ function dir_has_trace_events() {
 
 function get_all_trace_events() {
     local all= event= short=
-    all=$(find ${KERNEL_TRACE_EVENTS_DIR}/hfi1_* -type d)
+    all=$(find ${KERNEL_TRACE_EVENTS_DIR}/hfi1_* ${KERNEL_TRACE_EVENTS_DIR}/rvt* -type d)
     for event in ${all}; do
 	short="${event##${KERNEL_TRACE_EVENTS_DIR}/}"
 	dir_has_trace_events ${event} && short=${short}/
@@ -131,7 +141,7 @@ function get_all_trace_events() {
 function validate_trace_event() {
     local ev="hfi1_${1}" var=${2} e=
 
-    for e in ${ev} ${ev}/ ${ev//\///hfi1_}; do
+    for e in ${ev} ${ev}/ ${ev##hfi1_} ${ev##hfi1_}/ ${ev//\///hfi1_}; do
 	if [[ " ${ALL_EVENTS[@]} " =~ " ${e} " && \
 	    -f ${KERNEL_TRACE_EVENTS_DIR}/${e}/enable ]]; then
 	    [ "${var}" ] && eval ${var}=${e}
@@ -720,9 +730,7 @@ if [ ${tracing} -eq 1 ]; then
 	done
     else
 	for event in ${ENABLE_EVENTS[@]}; do
-	    validate_trace_event ${event} event && \
-		enable_trace_event ${event} || \
-		error "Unknown tracing event '${event}'!"
+	    enable_trace_event ${event}
 	done
     fi
 
@@ -732,9 +740,7 @@ if [ ${tracing} -eq 1 ]; then
 	done
     else
 	for event in ${DISABLE_EVENTS[@]}; do
-	    validate_trace_event ${event} event && \
-		disable_trace_event ${event} || \
-		error "Unknown tracing event '${event}'!"
+	    disable_trace_event ${event}
 	done
     fi
 
@@ -766,7 +772,7 @@ if [ ${tracing} -eq 1 ]; then
 	trap SIGINT
 	disable_trace
 	for event in ${ENABLE_EVENTS[@]}; do
-	    disable_trace_event hfi1_${event//\///${DRV_NAME}_}
+	    disable_trace_event $event
 	done
 	(( didsomething++ ))
     fi

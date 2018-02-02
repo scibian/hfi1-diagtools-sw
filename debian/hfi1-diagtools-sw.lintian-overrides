@@ -1,2 +1,4 @@
-# hfi1_control fails syntax check, false positive due to extglob
-shell-script-fails-syntax-check usr/bin/hfi1_control
+# hfi1_control false positive due to extglob
+hfi1-diagtools-sw: shell-script-fails-syntax-check usr/bin/hfi1_control
+# fortify is turned on, hfi1_eprom is a false positive
+hfi1-diagtools-sw: hardening-no-fortify-functions usr/bin/hfi1_eprom

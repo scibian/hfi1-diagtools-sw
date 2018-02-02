@@ -1,4 +1,3 @@
-0001-Makefile-version-rel.patch
-
-0002-hfi1_control-pci-ids.patch
-0003-fix-manpage-errors.patch
+fix-Makefile-version-rel.patch
+hfi1_control-pci-ids.patch
+fix-manpage-errors.patch

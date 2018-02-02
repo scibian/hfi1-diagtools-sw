@@ -3,17 +3,9 @@ Description: Correct errors in manpage source
  lintian:
     + Illegal comment syntax.
 	+ Unterminated diversion.
- .
- hfi1-diagtools-sw (0.8-68-1ifs) UNRELEASED; urgency=medium
- .
-    * Import hfi1-diagtools-sw 0.8-68 from IFS 10.5.0.0.153 upstream.
-    * Correct hfi1_control's detection of pci.ids.
-    * Correct manpage errors.
- .
 Author: Brian T. Smith <bsmith@systemfabricworks.com>
-Copyright: 2017 System Fabric Works, Inc. All Rights Reserved.
 Forwarded: no
-Last-Update: <2017-09-29>
+Last-Update: <2017-12-12>
 
 ---
 --- a/man/hfi1.4

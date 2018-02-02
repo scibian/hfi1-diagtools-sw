@@ -1,17 +1,19 @@
 #!/usr/bin/make -f
 #
-# Copyright (c)2016 System Fabric Works, Inc. All Rights Reserved,
-#
 
-export CFLAGS=
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
 %:
-	dh $@ --parallel
+	dh $@ --parallel --with autoreconf
 
+.PHONY: override_dh_installdocs
+override_dh_installdocs:
+	dh_installdocs --link-doc=hfi1-diagtools-sw
+
+.PHONY: override_dh_install
 override_dh_install:
 	dh_install
 	chmod a-x `find debian/hfi1-diagtools-sw/usr/share/hfi-diagtools-sw/test_packets/ -type f -exec grep -L bin/sh {} \;`
-
 
 
 
