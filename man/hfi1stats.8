@@ -1,0 +1,102 @@
+.TH hfi1stats 8
+'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+'Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation.
+.SH NAME
+hfi1stats \- show counters and statistics for Omni-Path
+.SH SYNOPSIS
+.B hfi1stats
+[-c secs [-o]] [-e] [-i unit#[:port#]] [-j] [-v] [-z] [-1] [-E excludes]
+.SH DESCRIPTION
+Displays board counters and driver statistics obtained from the
+.BR hfi1 (4)
+driver.  The first group displayed are the driver statistics, the
+second group are the board counters.  Driver statistics are more
+subject to change from version to version than the counters.
+.TP 12
+.BI "-c " seconds
+After displaying normal output, check for changes every
+.I seconds
+and then display changed fields, one per line (accepts decimal
+fractions as well as whole numbers).  In this mode, if the
+.BR SIGHUP ,\  SIGINT ,\ or\  SIGTERM
+signal is received, any final deltas will be printed and the program
+will exit.
+.TP 12
+.B -o
+Valid only with -c, prints
+.IR o nly
+the changes, and does not print the initial values.
+.TP 12
+.B -e
+Only display counters and driver statistics that can be considered
+to be errors.   This can be combined with the -c option, to watch only
+error value deltas.
+.TP 12
+.B -E \ exclude1,exclude2...
+Exclude stats, counters, and portcounters that match any of these strings.
+Useful when looking for a subset of the information, particularly with the
+.B -c
+option.
+.TP 12
+.BR -i \ unit#[:port#]]
+port#
+Only print port counter info for this HFI unit, and optionally
+port# .  Unit numbers start at 0, port# start at 1.  The default is to
+print the information for all units and ports.
+It is an error if the unit (and port if specified) are not found.
+.TP 12
+.B -j
+Print stats and counters in JSON format.
+.TP 12
+.B -v
+verbose; display some fields that are normally suppressed if they
+contain zeros.
+.TP 12
+.B -z
+Only print stats and counters with a non-zero value.
+.TP 12
+.B -1
+Print initial values one per line, similar to
+.B -c
+output format.
+.P
+.B hfi1stats
+
+shows both driver statistics and counters in the Omni-Path HFI device(s).
+The driver statistics are reset if the driver is reloaded, but
+the device counters are not reset on driver reload (they are readonly, and count up
+until the chip is reset (by reboot or powercycle), and then wrap
+back to 0 and keep counting.  The values up through the line
+starting with
+.BI Unit 
+are the driver statistics, the rest are counters from the Omni-Path HFI devices.
+Counters are shown in 2 sections, the first section are values that
+are global to each unit, the second (and third, for boards with two
+ports) are the counters specific to a port.
+.P
+Fields whose values can grow to large values in fairly short time periods
+(days) will be shown with values divided by 1000 and ending with
+.B K
+when displaying the current values, in order to preserve a columnar display.
+This is not done for the single columnt output format
+.RB ( -1
+) and 
+.RB ( -c deltas).
+.SH SEE ALSO
+.BR hfi (4)
+.br
+Additional documentation is available on the Intel website:
+.br
+http://www.intel.com/omnipath
+.SH COPYRIGHT
+Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+.br
+Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+.br
+Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
+.SH AUTHOR
+Intel Corporation.

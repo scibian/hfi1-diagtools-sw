@@ -1,0 +1,64 @@
+.TH hfi1 4
+'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+'Copyright (C) 2006, 2007, 2008, 2009, 2011. QLogic Corporation. All rights reserved.
+'Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation.
+.SH NAME
+hfi1 \- device driver for Intel Omni-Path Architecture host fabric interface
+.SH DESCRIPTION
+The hfi1 driver is responsible for board initialization, handling interrupts (mostly
+for errors),
+mediating access to the board for user programs, and handling memory mapping.
+It also provides the verbs interface for OpenFabrics.
+.P
+The software interface to the driver is provided through the
+.IB libverbs ,
+.IB libibumad ,
+and
+.IB libpsm2
+libraries.
+.SH MODULE OPTIONS
+The hfi1 driver supports several module options that can be set via
+the
+.BR modprobe (8)
+or
+.BR insmod (8)
+command line options. See the output of the following command:
+.RS
+modinfo -p hfi1
+.RE
+For information on the module option parameters see the
+.B Intel Omni-Path Architecture User's Guide.
+.SH DIAGNOSTICS
+Error messages and important informational messages are printed
+with the label
+.IB hfi1
+and the PCIe bus identifier such as:
+.RS
+hfi1 0000:01:00.0: hfi1_0: IB0:1 got a lid: 0x1
+.RE
+Interfaces are displayed with the prefix hfi1_#, where
+.I #
+is the unit number (e.g. 0)
+.BR hfi1_0
+.RE
+.SH SEE ALSO
+.IB modprobe (8),
+.IB insmod (8)
+.br
+Additional documentation is available on the Intel website:
+.br
+http://www.intel.com/infiniband
+.SH FILES
+.br
+/dev/hfi1* - device files
+.SH COPYRIGHT
+Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+.br
+Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+.br
+Copyright (C) 2004, 2005, 2006.  PathScale, Inc. All rights reserved.
+.SH AUTHOR
+Intel Corporation.

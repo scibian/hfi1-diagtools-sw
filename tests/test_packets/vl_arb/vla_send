@@ -1,0 +1,164 @@
+#! /bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# vla_send ifc lid test_spec
+# Helper for script to test VL arbitration.
+# It is run on the "source" machine, invoked via ssh from the "target" machine
+#
+# Using the (new) SendCtrl observer hook, it blocks Tx traffic, loads
+# up the sendbuffers with the desired packets, and then re-enables send
+#
+# The major parts are:
+#
+# Read test_file to determine number of VLs, hence number of packets per VL.
+#
+# In most cases, all VLs will get the same number of same size packets,
+# Derived from the name of the test_file, e.g. vlt_8_2052_1
+# uses 8 VLS and will send (128/8 == 16) packets, 2052 bytes each (_1 is
+# the test sequence number in the suite).
+#
+# A few tests use differing packets per file, so specify them in the
+# file, with lines of the form:
+#PF 0 16 42
+# which would send, on VL0, 16 packets 42 bytes long.
+#
+# Use ifc (e.g. 0:1) to determine source port. From that, address of SendCtrl
+#
+# Disable Sending
+#
+# Send (128/num_vls) packets of the specified size, one each VL
+#
+# Enable sending, to release all packets at once
+
+ifc=$1
+TLID=$2
+test_spec=$3
+
+ibport=`echo "$ifc" | cut -s -d ':' -f2`
+if [ "$ibport" = "" ]
+then
+  ibport=1
+fi
+
+logdir=/scratch/vla_logs
+if [ ! -d $logdir ]
+then
+  mkdir -p $logdir
+fi
+logfile=$logdir/${test_spec}_$$.log
+
+# Locate self, and by implication other scripts and files
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+test_spec_file="$script_dir/$test_spec"
+
+num_vls=`grep "^qos_max_vls=" $test_spec_file | cut -d '=' -f2`
+pkt_len=`echo $test_spec | cut -d '_' -f3`
+pkt_cnt=`expr 128 / $num_vls`
+
+# FIXME Default to port 1 for now
+export SENDCTRL=`printf "0x%d1c0" $ibport`
+
+echo Cork Txe via SENDCTRL | tee $logfile
+echo -e "m $SENDCTRL 0 8\nq\n" | $script_dir/ipath_diags > /dev/null
+echo -e "r $SENDCTRL 0 8\nq\n" | $script_dir/ipath_diags | \
+  grep $SENDCTRL | tee -a $logfile
+
+#echo Toggle IBVLarb to reset pointers | tee -a $logfile
+#echo -e "m $SENDCTRL 0 0x8000\nq\n" | $script_dir/ipath_diags > /dev/null
+#echo -e "m $SENDCTRL 0x8000 0x8000\nq\n" | $script_dir/ipath_diags > /dev/null
+
+except_lines=`grep "^#PF " $test_spec_file`
+if [ "$except_lines" = "" ]
+then
+  echo "Send $pkt_cnt packets $pkt_len bytes to LID $TLID" | tee -a $logfile
+  echo "on each of $num_vls VLs" | tee -a $logfile
+fi
+pkts="$script_dir/vlp_$pkt_len"
+
+vl=0
+while [ $vl -lt $num_vls ]
+do
+  except_line=`grep "^#PF $vl" $test_spec_file`
+  if [ "$except_line" = "" ]
+  then
+    if [ "$except_lines" != "" ]
+    then
+      echo "Send default $pkt_cnt packets $pkt_len bytes on VL$vl to LID $TLID" | tee ${logfile}_vl_$vl
+    fi
+    IPATH_VL=$vl $script_dir/ipath_pkt_send -L$TLID -c$pkt_cnt -k $pkts > /dev/null 2> /dev/null
+  else
+    exnpkt=`echo $except_line | cut -d ' ' -f3`
+    expktlen=`echo $except_line | cut -d ' ' -f4`
+    expkts="$script_dir/vlp_$expktlen"
+    echo "Send $exnpkt packets $expktlen bytes on VL$vl to LID $TLID" | tee -a $logfile
+    IPATH_VL=$vl $script_dir/ipath_pkt_send -L$TLID -c$exnpkt -k $expkts > /dev/null 2> /dev/null
+  fi
+  vl=`expr $vl + 1`
+done
+echo Check that SendCtrl was not re-enabled | tee -a $logfile
+echo -e "r $SENDCTRL 8 8\nq\n" | $script_dir/ipath_diags | \
+ grep $SENDCTRL | tee -a $logfile
+
+echo UnCork Txe via SENDCTRL | tee -a $logfile
+echo -e "m $SENDCTRL 8 8\nq\n" | $script_dir/ipath_diags > /dev/null
+echo -e "r $SENDCTRL 8 8\nq\n" | $script_dir/ipath_diags | \
+  grep $SENDCTRL | tee -a $logfile
+

@@ -1,0 +1,161 @@
+.TH hfi1_pkt_send 8
+'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+'Copyright (C) 2006, 2007, 2008. QLogic Corporation. All rights reserved.
+'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation.
+.SH NAME
+hfi1_pkt_send \- Diagnostic packet sender for Intel Fabric link and HFIs
+.SH SYNOPSIS
+.B hfi1_pkt_send
+[-h ]
+.br
+.B hfi1_pkt_send
+[-U Unit#] [-L LID] [-C Context] [-Q QP] [-d lvl] [-c #] [-k] [-r] [-w] packet_file
+.br
+.SH DESCRIPTION
+.P
+.B hfi1_pkt_send
+is intended to allow arbitrary packets to be sent on an InfiniBand link.
+Packets are described in a file containing
+hexadecimal data. The file is intended to be human-readable. Each pair of 
+hexadecimal digits is sent as one octet.
+Multi-octet values (e.g. 12345678) are sent in the order left-to-right,
+but simply by taking two octets at a time, so "123 456" will send four
+octets: 12 03 45 06.
+.P
+Packet files can also contain special "macro" codes to generate various
+headers, detailed in
+.BR hfi_pkt_files (5)
+although the most commonly used are:
+.P
+.B LRH
+to insert a Local Route Header using the command-line specified DLID,
+and assuming a BTH follows.
+.br
+.B LRHR
+to insert a Local Route header as above, but for a
+.B raw
+packet, that is, one without a BTH.
+.P
+A '.' in the first column of a line marks the end of a packet, so 
+multiple packets can be supplied by one file.
+The period ending a packet can be followed by a
+.B B
+to force it to be ended with an
+.B EBP
+regardless of its contents, or an
+.B I
+will corrupt the ICRC (invariant CRC), if the packet contains one.
+.B H 
+will suppress hardware insertion of the HCRC into the KDETH header (if that
+header is present), allowing the HCRC value to be specified in the input
+packet file.
+These may be combined, e.g.:
+.B .IH
+will corrupt ICRC and suppress HCRC
+.P
+Any text after a
+.B #
+character is taken as a "comment to end of line", so packet files can
+contain explanations.
+.P
+If a QP is not specified, hfi1_pkt_send constructs a QP suitable for use with
+KDETH (PSM) packets in the following manner:
+.TP 8
+        DestQP = (SendBthQP << 16) | remote_context
+.P
+SendBthQP is the special QP value chosen by the driver to indicate packets with
+a KDETH header, and remote_context is the specified remote receive context
+number.  If a QP is specified either using the –Q parameter or in a packet
+input file, its value is used as-is; the above formula is not applied.
+.P
+HCRC (Header CRC) is computed by the hardware and inserted into the KDETH header
+if present.  Software can suppress the hardware HCRC insertion to use its own
+HCRC value instead.  Regardless, the hardware will always check that the HCRC
+value is correct.  The value of PbcInsertHcrc is set as follows.  If
+.B DestQP >> 16 != SendBthQP
+, PbcInsertHcrc is set to 2 (suppress hardware HCRC insertion).  Otherwise, it
+is assumed that a KDETH header is present and HCRC should be inserted.  If
+LRH.LNH == 3 (GRH present), PbcInsertHcrc is set to 1 (insert assuming GRH).
+Otherwise, PbcInsertHcrc is set to 0 (insert assuming no GRH).
+.P
+The
+.B -L
+,
+.B -C
+and
+.B -Q
+options may be omitted to use the values specified in the packet input file.
+Otherwise, these parameters can be used to override the defaults.
+.P
+The
+.B -w
+option can be used to wait and watch for errors on the sent packet.
+However, it is not precise.  Errors from other senders using the same
+send context may be caught.  Errors that occur after the buffer
+credits are returned are not caught.  This option is only meaningful when used with the
+.B -k
+option
+.TP 14
+.BI -h
+Display a short multi-line help message.
+.TP 14
+.BI -d \ number
+Set the debug level for the program. The value is a bitmap of debug
+levels. Note that setting high debug levels can render the system almost unusable.
+.TP 14
+.BI -U \ Unit
+Specify an alternate device unit to use. For example, to use
+.IR /dev/hfi1
+specify `1'. The default is 0.
+.TP 14
+.BI -L \ LID
+Set the destination LID.
+.TP 14
+.BI -C \ Context
+Set the destination Context.
+.TP 14
+.BI -Q \ QueuePair
+Set the destination Queue Pair (QP).
+.TP 14
+.BI -V \ VirtualLane
+Set the Virtual Lane (VL).
+.TP 14
+.BI -S \ Service Level
+Set the Service Level (SL).
+
+.TP 14
+.BI -c \ number
+Specifies how many copies of the packets are to be sent. The packets are
+sent in the order they appear in the file; then the entire sequence is
+repeated. Specifying a count of -1 means forever (until terminated with the
+.IR kill (1)
+command or a keyboard interrupt).
+.TP 14
+.BI -k 
+Use the kernel (diagpkt) interface for sending packets, instead of directly to
+the hardware PIO send buffers.
+.TP 14
+.BI -r 
+Check the receive queue and clear out (drop) any packets that arrive.
+.TP 14
+.BI -w
+Wait for the buffer credits of the packet to be returned.  This option is for
+the kernel interface only, it is ignored otherwise.
+.SH SEE ALSO
+.BR hfi_pkt_files (5)
+.BR hfi1_pkt_test (8)
+.br
+Additional documentation is available on the Intel website:
+.br
+http://www.intel.com/infiniband
+.SH COPYRIGHT
+Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+.br
+Copyright (C) 2006, 2007, 2008. QLogic Corporation. All rights reserved.
+.br
+Copyright (C) 2006 PathScale, Inc.  All rights reserved.
+.SH AUTHOR
+Intel Corporation.

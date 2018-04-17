@@ -1,0 +1,13 @@
+This directory contains scripts and other files for testing VL Arbitration
+(Quality of Service) on the IBA7322.
+
+The test spec is in the .xls file, prepared by Ian Colloff.
+vlp_* files are packet descriptions for ipath_pkt_send
+vla_* are shell scripts to run the test. vla_test is the "top"
+vlt_* are individual test desciptors
+
+It is still a Work In Progress, as two tests (vlt_8_mix and vlt_2052_priority)
+still fail.
+
+Michael Albaugh
+

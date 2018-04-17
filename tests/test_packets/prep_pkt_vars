@@ -1,0 +1,159 @@
+#!/bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 Qlogic Corporations.  All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 Qlogic Corporations.  All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# prep_pkt_vars -- sort out where to get files and what sort of chip we are
+# testing. Part of splitting pkt_cntr_test into multiple independent groups,
+# with a script per group. Each will include this to set up chip, unit, and
+# port-specific variables.
+
+# Interface to test is only command-line parameter.
+ifc=$1
+if [ -z "$ifc" ]
+then
+  ifc=0:1
+fi
+
+# Split interface spec into unit and port
+port=`echo $ifc | cut -s -d ':' -f2`
+if [ "$port" = "" ]
+then
+  port=1
+fi
+
+unit=`echo $ifc | cut -d ':' -f1`
+if [ "$unit" = "" ]
+then
+  unit=0
+fi
+
+# Reconstruct interface spec from given/defaulted pieces
+export ifc=${unit}:${port}
+
+# If user did not force CHIP_TYPE (e.g. for proto board), find it.
+
+if [ -z "$CHIP_TYPE" ]
+then
+  bdname=`cut -s -d '_' -f2 < /sys/class/infiniband/qib$unit/board_id`
+  case "$bdname" in
+    "QHT7040" | "QHT7140" )
+      CHIP_TYPE=6110
+    ;;
+    "QLE7140" | "QEM7140" | "QMH7140" | "QMI7140" )
+      CHIP_TYPE=6120
+    ;;
+    "QLE7280" | "QLE7240" )
+      CHIP_TYPE=7220
+    ;;
+    "QLE7340" | "QLE7342" )
+      CHIP_TYPE=7322
+    ;;
+    "InfiniPath" )
+      CHIP_TYPE=`cut -c20- < /sys/class/infiniband/qib$unit/board_id`
+    ;;
+    * )
+        echo "Unknown CHIP_TYPE for board type " \
+	    `cat /sys/class/infiniband/qib$unit/board_id`
+        exit 1
+    ;;
+  esac
+fi
+export CHIP_TYPE
+
+# If not overridden, add 2 words for pre-7322, 1 for 7322 if
+# using TestMode
+if [ "$TEST_MODE_ADDS" = "" ]
+then
+  if [ "$CHIP_TYPE" = "7322" ]
+  then
+    TEST_MODE_ADDS=1 # 7322 Unless/until RTL changes, IB pkts only
+  else
+    TEST_MODE_ADDS=2 # Pre-7322
+  fi
+fi
+export TEST_MODE_ADDS
+
+# 7322 has SendChecks that make kernel sends a better choice
+if [ "$KOPT" = "" -a "$CHIP_TYPE" = "7322" ]
+then
+  echo Using kernel mode send
+  KOPT=-k
+fi
+export KOPT
+
+# Locate "current directory" containing scripts, packet-files, etc.
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+if [ "$pktdir" = "" ]
+then
+  pktdir="$script_dir"
+fi
+export pktdir
+
+if [ -z "$ptname" ]
+then
+  ptname="$pktdir/pkt_probe -i $ifc $KOPT "
+fi
+export ptname
+
+if [ -z "$RLID" ]
+then
+  # Assume we are in loopback, since only that will work well
+  export RLID=`cat /sys/class/infiniband/qib$unit/ports/$port/lid`
+fi

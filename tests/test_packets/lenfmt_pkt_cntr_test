@@ -1,0 +1,203 @@
+#!/bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# lenfmt_pkt_cntr_test -- exercise various error counters by sending
+# packets via loopback and examining the results via ipathstats.
+# This script concentrates on packet length and header format issues,
+# e.g virtual lanes.
+#
+# Can be run "stand alone" (assumes link up, looped back) or as part
+# of pkt_cntr-suite
+#
+# The gory details are in pkt_probe, which builds on ipath_pkt_send
+# The variable QIB_EXPECTED_CNTRS is used to communicate the expected counter
+# values, e.g.
+# QIB_EXPECTED_CNTRS="RxDlidFltr=2 RxEBP=2"
+# indicates that those counts (and only those counts) should be 2
+
+ifc=$1
+
+# Locate self, and by implication other scripts and files
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+. $script_dir/prep_pkt_vars
+
+TEST_MODE_TX_WDS=`expr 58 + $TEST_MODE_ADDS`
+
+RXNORM="RxPkt=1 RxWords=58"
+TXNORM="TxPkt=1 TxWords=58"
+PKTNORM="$TXNORM $RXNORM"
+PKTTEST="TxPkt=1 TxWords=$TEST_MODE_TX_WDS $RXNORM"
+
+err_cnt=0
+
+echo "-- Bad length (EBP suppressed) should count only in Rx"
+QIB_EXPECTED_CNTRS="RxBadLen=1 $PKTTEST" $ptname -L$RLID -c1 $pktdir/bad_len_egp
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+if [ $CHIP_TYPE = 6120 ]
+then
+  echo "-- Bad len (EBP not suppressed) should count in Tx, receive runt packet"
+  QIB_EXPECTED_CNTRS="RxBadLen=1 RxEBP=1 RxVCRCerr=1 TxInvalLen=1 $PKTNORM" \
+    $ptname -L$RLID -c1 $pktdir/bad_len_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- Unsupported VL (EBP suppressed) should count in Tx, Rx Bad Format"
+  QIB_EXPECTED_CNTRS="RxBadFormat=1 TxUnsupVL=1 $PKTTEST" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl8_egp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- 6120 Unsup VL (EBP not suppressed) _also_ counts Tx, Rx Bad Format"
+  QIB_EXPECTED_CNTRS="RxBadFormat=1 TxUnsupVL=1 $PKTNORM" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl8_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+if [ $CHIP_TYPE -eq 7220 ]
+then
+  echo "-- Bad len (EBP not suppressed) should count in Tx, but receive packet"
+  QIB_EXPECTED_CNTRS="RxBadLen=1 RxEBP=1 TxInvalLen=1 $PKTNORM" \
+    $ptname -L$RLID -c1 $pktdir/bad_len_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- Unsup VL (EBP suppressed) should count in Tx, Rx"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 TxUnsupVL=1 $PKTTEST" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl8_egp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- 7220 Unsup VL (EBP not suppressed) _also_ counts in Tx, Rx"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 TxUnsupVL=1 $PKTNORM" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl8_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+if [ $CHIP_TYPE -eq 7322 ]
+then
+  echo "-- Bad length (EBP not suppressed) should count in Tx, EBP on Rx"
+  QIB_EXPECTED_CNTRS="RxEBP=1 TxInvalLen=1 $TXNORM RxPkt=1" \
+    $ptname -L$RLID -c1 $pktdir/bad_len_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- Unsupported VL (8 EBP suppressed) should count in Tx, Rx"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 TxUnsupVL=1 $PKTTEST" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl8_egp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  # The SendUnsupportedVLErr bit in the ErrStatus register gets set so
+  # there is a launch error for this packet.
+  echo "-- Unsupported VL (8 EBP not suppressed) SendUnsupportedVLErr"
+  QIB_EXPECTED_CNTRS="" $ptname -L$RLID -c1 $pktdir/unsupvl8_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- Unsupported VL (4 EBP suppressed) should count in Tx, Rx, RxPktDrop"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 RxPktDropped=1 TxUnsupVL=1 $PKTTEST" \
+    $ptname -L$RLID -c1 $pktdir/unsupvl4_egp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- Unsupported VL (4 EBP not suppressed) caught on Tx"
+  QIB_EXPECTED_CNTRS="TxUnsupVL=1" $ptname -L$RLID -c1 $pktdir/unsupvl4_mayebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- VL15 should not cause RxVlErr"
+  QIB_EXPECTED_CNTRS="TxPkt=1 TxWords=9 RxPkt=1 RxWords=9" \
+    $ptname -L$RLID -c1 $pktdir/min_ud_vl15
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- VL15 with GRH should count RxVlErr"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 TxPkt=1 TxWords=19 RxPkt=1 RxWords=19" \
+    $ptname -L$RLID -c1 $pktdir/grh_ud_vl15
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- ICRC err on VL15 with GRH should not count RxVlErr (priority)"
+  QIB_EXPECTED_CNTRS="RxICRCerr=1 TxPkt=1 TxWords=20 RxPkt=1 RxWords=19" \
+    $ptname -L$RLID -c1 $pktdir/grh_ud_vl15_icrc
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- raw packet on VL15 should count RxVlErr"
+  QIB_EXPECTED_CNTRS="RxVlErr=1 TxPkt=1 TxWords=5 RxPkt=1 RxWords=5" \
+    $ptname -L$RLID -c1 $pktdir/raw_vl15
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+  echo "-- raw packet on VL15 with VCRC error should not count RxVlErr"
+  QIB_EXPECTED_CNTRS="RxVCRCerr=1 TxPkt=1 TxWords=6 RxPkt=1 RxWords=5" \
+    $ptname -L$RLID -c1 $pktdir/raw_vl15_vcrc
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+echo "-- Wrong P_Key (EBP suppressed) should count only in Rx"
+QIB_EXPECTED_CNTRS="RxInvalPKey=1 $PKTTEST" \
+  $ptname -L$RLID -c1 $pktdir/bad_pkey_egp
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+echo "-- Wrong LRH Version (EBP suppressed) should count only in Rx"
+QIB_EXPECTED_CNTRS="RxBadFormat=1 $PKTTEST" \
+  $ptname -L$RLID -c1 $pktdir/bad_vers_egp
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+resval=0
+if [ $err_cnt -ne 0 ]
+then
+  echo FAILED
+  resval=1
+fi
+
+echo $err_cnt errors
+exit $resval
+
