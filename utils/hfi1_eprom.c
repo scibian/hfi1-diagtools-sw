@@ -1,5 +1,5 @@
 /*
- * Copyright(c) 2015, 2016 Intel Corporation.
+ * Copyright(c) 2015-2017 Intel Corporation.
  *
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
@@ -46,9 +46,12 @@
  */
 
 #define _GNU_SOURCE
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <time.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <fcntl.h>
@@ -79,6 +82,8 @@
 #define MASK_64KB (SIZE_64KB - 1)
 
 #define SIZE_1MB (1024 * 1024)
+
+#define B_TO_KB(BYTES) ((BYTES) / 1024)
 
 /* "page" size for the EPROM, in bytes */
 #define EP_PAGE_SIZE 256
@@ -125,16 +130,7 @@ void *reg_mem = NULL;
 #define IMAGE_MAGIC_VAL 0x4f5041696d616765
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-const char * const pci_device_table[] = { "0x24f0", "0x24f1" };
 const char pci_eprom_device[] = "0x24f0";
-
-struct hfi_cmd {
-	uint32_t type;		/* command type */
-	uint32_t len;		/* length of buffer pointed to by addr */
-	uint64_t addr;		/* user space address */
-};
-
-const char *type_name(int type);
 
 struct file_info {
 	const char *name;	/* name for the file */
@@ -222,13 +218,13 @@ const char version_magic[] = "VersionString:";
  */
 #define MAX_PCI_BUS_LEN 16
 #define MAX_DEV_NAME 255
+#define PCI_SHORT_ADDR(PCI_ADDR) (&(PCI_ADDR)[5])
 
 int num_dev_entries = 0;
 char pci_device_addrs[MAX_DEV_ENTRIES][MAX_PCI_BUS_LEN];
 char resource_file[MAX_DEV_NAME] = "";
 char enable_file[MAX_DEV_NAME] = "";
 const char pci_device_path[] = "/sys/bus/pci/devices";
-const char default_driver_device_name[] = "/dev/hfi1_0";
 const char *command;		/* derived command name */
 uint32_t dev_id;		/* EEPROM device identification */
 uint32_t dev_mbits;		/* device megabit size */
@@ -247,6 +243,88 @@ const struct size_info {
 	{ 0x0018BB20,   128 },          /* Micron MT25QU128AB{A}*/
 	{ 0x00182001,   128 },          /* Spansion S25FS128 */
 };
+
+struct
+{
+	bool enabled;
+	int state;
+	int msg_size;
+	struct timespec last_time;
+} progress_spin;
+
+/*
+ * Init progress spin. Setup time variable to determine
+ * estimated time and print operation message
+ */
+void progress_spin_init(const char* format, ...)
+{
+	va_list args;
+	char msg[512];
+
+	if(!verbose) {
+		progress_spin.enabled = true;
+		progress_spin.state = 0;
+
+		va_start (args, format);
+		vsnprintf(msg, ARRAY_SIZE(msg), format, args);
+		va_end (args);
+		progress_spin.msg_size = strlen(msg);
+
+		clock_gettime(CLOCK_MONOTONIC, &progress_spin.last_time);
+
+		printf("%s ", msg);
+	}
+}
+
+/*
+ * Backspace last character and print next from the sequence
+ * -\|/-\|/ imitating spin if done frequently enough. There is
+ * time limit between consequtive character changes set to 0.2 sec
+ * to avoid spin being to rapid.
+ */
+void progress_spin_advance(void)
+{
+	static const char chars[] = "-\\|/-\\|/";
+
+	if(!verbose && progress_spin.enabled) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		time_t sec_diff = now.tv_sec - progress_spin.last_time.tv_sec;
+		long int nsec_diff = now.tv_nsec - progress_spin.last_time.tv_nsec;
+		if(sec_diff > 0 || nsec_diff > 200000000l) {
+			printf("\b%c", chars[progress_spin.state]);
+			fflush(stdout);
+			progress_spin.state = (progress_spin.state + 1) % (ARRAY_SIZE(chars) - 1);
+			clock_gettime(CLOCK_MONOTONIC, &progress_spin.last_time);
+		}
+	}
+}
+
+/*
+ * End progress spin. Backspace the spin character
+ * and print 'done' instead
+ */
+void progress_spin_fini(void)
+{
+	if(!verbose) {
+		progress_spin.enabled = false;
+		printf("\bdone\n");
+	}
+}
+
+/*
+ * End progress spin. Backspace the spin character
+ * and accompanying message
+ */
+void progress_spin_clear(void)
+{
+	if(!verbose) {
+		progress_spin.enabled = false;
+		int i = 0;
+		for(; i < progress_spin.msg_size + 1; ++i)
+			printf("\b");
+	}
+}
 
 const char *file_name(int part);
 
@@ -353,7 +431,7 @@ uint32_t find_chip_bit_size(uint32_t dev_id)
 	if (dev_id == 0)
 		return 0;
 
-	for (i = 0; i < sizeof(device_sizes)/sizeof(device_sizes[0]); i++) {
+	for (i = 0; i < ARRAY_SIZE(device_sizes); i++) {
 		if (device_sizes[i].dev_id == dev_id)
 			return device_sizes[i].megabits;
 	}
@@ -376,6 +454,8 @@ void wait_for_not_busy(int fd)
 
 	write_reg(fd, ASIC_EEP_ADDR_CMD, CMD_READ_SR1); /* starts page mode */
 	while (1) {
+		progress_spin_advance();
+
 		usleep(WAIT_SLEEP_US);
 		count++;
 		reg = read_reg(fd, ASIC_EEP_DATA);
@@ -398,6 +478,7 @@ void erase_chip(int dev_fd)
 {
 	write_reg(dev_fd, ASIC_EEP_ADDR_CMD, CMD_WRITE_ENABLE);
 	write_reg(dev_fd, ASIC_EEP_ADDR_CMD, CMD_CHIP_ERASE);
+
 	wait_for_not_busy(dev_fd);
 }
 
@@ -807,12 +888,13 @@ void print_data_version(struct file_info *fi)
 		printf("%s version: not found\n", file_name(fi->part));
 }
 
-#define PRINT_SIZE (64 * 1024)
-void print_of(const char *what, uint32_t offset, uint32_t total_k)
+void print_of(const char *what, uint32_t offset_k, uint32_t total_k)
 {
-	/* show something every PRINT_SIZE bytes */
-	if (verbose > 1 && ((offset % PRINT_SIZE) == 0)) {
-		printf("...%s %dK of %dK\n", what, offset/1024, total_k);
+	const uint32_t print_size_k = B_TO_KB(64 * 1024);
+
+	/* show something every print_size bytes */
+	if (verbose > 1 && ((offset_k % print_size_k) == 0)) {
+		printf("...%s %dK of %dK\n", what, offset_k, total_k);
 		fflush(stdout);
 	}
 }
@@ -825,21 +907,34 @@ void do_read(int dev_fd, struct file_info *fi)
 
 	if (verbose)
 		printf("Reading %s\n", file_name(fi->part));
-	total_k = fi->bsize / 1024;
+	total_k = B_TO_KB(fi->bsize);
 
 	/* read into our buffer */
 	for (offset = 0; offset < fi->bsize; offset += EP_PAGE_SIZE) {
 		read_page(dev_fd, fi->start + offset,
 					(uint32_t *)(fi->buffer + offset));
-		print_of("read", offset + EP_PAGE_SIZE, total_k);
+		print_of("read", B_TO_KB(offset + EP_PAGE_SIZE), total_k);
+
+		progress_spin_advance();
 	}
 
 	fi->fsize = get_image_size(fi->buffer, fi->bsize);
+}
 
-	if (fi->fd >= 0)
-		write_system_file(fi);
-	else
-		print_data_version(fi);
+void do_read_version(int dev_fd, struct file_info *fi)
+{
+	progress_spin_init("%s version: ", file_name(fi->part));
+	do_read(dev_fd, fi);
+	progress_spin_clear();
+	print_data_version(fi);
+}
+
+void do_read_file(int dev_fd, struct file_info *fi)
+{
+	progress_spin_init("Reading %s... ", file_name(fi->part));
+	do_read(dev_fd, fi);
+	write_system_file(fi);
+	progress_spin_fini();
 }
 
 void write_enable(int dev_fd)
@@ -860,6 +955,9 @@ void write_disable(int dev_fd)
 void do_erase(int dev_fd, struct file_info *fi)
 {
 	write_enable(dev_fd);
+
+	progress_spin_init("Erasing %s... ", file_name(fi->part));
+
 	if (fi->part < 0) {
 		if (verbose)
 			printf("Erasing whole chip\n");
@@ -869,6 +967,9 @@ void do_erase(int dev_fd, struct file_info *fi)
 			printf("Erasing %s\n", file_name(fi->part));
 		erase_range(dev_fd, fi->start, fi->bsize);
 	}
+
+	progress_spin_fini();
+
 	write_disable(dev_fd);
 }
 
@@ -881,7 +982,9 @@ void do_write(int dev_fd, struct file_info *fi)
 	if (verbose)
 		printf("Writing %s at 0x%x len %lx\n",
 		       fi->name, fi->start, fi->bsize);
-	total_k = fi->bsize / 1024;
+	total_k = B_TO_KB(fi->bsize);
+
+	progress_spin_init("Writing %s... ", file_name(fi->part));
 
 	/* data is already read from the file into the buffer */
 
@@ -891,8 +994,12 @@ void do_write(int dev_fd, struct file_info *fi)
 	for (offset = 0; offset < fi->bsize; offset += EP_PAGE_SIZE) {
 		write_page(dev_fd, fi->start + offset,
 					(uint32_t *)(fi->buffer + offset));
-		print_of("wrote", offset + EP_PAGE_SIZE, total_k);
+		print_of("wrote", B_TO_KB(offset + EP_PAGE_SIZE), total_k);
+
+		progress_spin_advance();
 	}
+
+	progress_spin_fini();
 
 	write_disable(dev_fd);
 }
@@ -902,7 +1009,7 @@ uint32_t do_info(int dev_fd)
 	return read_device_id(dev_fd);
 }
 
-void enable_device()
+bool enable_device()
 {
 	FILE *fp;
 	char boolean_value = '1';
@@ -911,10 +1018,14 @@ void enable_device()
 	if (fp == NULL) {
 		fprintf(stderr, "Unable to open device enable file as writable: %s\n",
 			enable_file);
-		exit(1);
+
+		return false;
 	}
+
 	fwrite(&boolean_value, sizeof(boolean_value), sizeof(boolean_value), fp);
 	fclose(fp);
+
+	return true;
 }
 
 void set_pci_files(int entry)
@@ -925,55 +1036,123 @@ void set_pci_files(int entry)
 		"%s/%s/enable", pci_device_path, pci_device_addrs[entry]);
 }
 
-int do_init(const char *dev_name)
+bool is_valid_dev(int dev_entry)
+{
+	return dev_entry >= 0 && dev_entry < num_dev_entries;
+}
+
+void list_all_devices(FILE* file)
 {
 	int i;
-	int dev_fd;
+	for (i = 0; i < num_dev_entries; i++) {
+		fprintf(file, "%d: %s/%s/resource0\n",
+			i, pci_device_path, pci_device_addrs[i]);
+	}
+}
+
+void invalid_device()
+{
+	fprintf(stderr, "Incorrect device specified, "
+		"HFI discrete device is required\n"
+		"Specify one from the list below:\n");
+	list_all_devices(stderr);
+	exit(1);
+}
+
+bool choose_device(const char* dev_name, int* last_dev)
+{
+	int i;
+	char buffer[sizeof(int)*8+1];
 
 	if (!dev_name) {
+		if(is_valid_dev(*last_dev))
+			return false;
+
 		set_pci_files(0);
-		dev_name = resource_file;
-		if (verbose)
-			printf("Using default device: %s\n", dev_name);
+		*last_dev = 0;
+
+	} else if (!strcmp(dev_name, "all")) {
+		*last_dev += 1;
+
+		if(!is_valid_dev(*last_dev))
+			return false;
+
+		set_pci_files(*last_dev);
+
+	} else if (i = atoi(dev_name), sprintf(buffer, "%d", i),
+			0 == strcmp(dev_name, buffer)) {
+
+		if(is_valid_dev(*last_dev))
+			return false;
+
+		if (i >= num_dev_entries) {
+			invalid_device();
+		}
+
+		set_pci_files(i);
+		*last_dev = i;
 	} else {
+		if(is_valid_dev(*last_dev))
+			return false;
+
 		for (i = 0; i < num_dev_entries; i++) {
 			set_pci_files(i);
-			if (!strcmp(dev_name, resource_file)) {
-				if (verbose)
-					printf("Using specified device: %s\n", dev_name);
+			*last_dev = i;
+			if (!strcmp(dev_name, resource_file)
+				|| !strcmp(dev_name, pci_device_addrs[i])
+				|| (!strcmp(dev_name, PCI_SHORT_ADDR(pci_device_addrs[i]))
+					&& !strncmp(pci_device_addrs[i], "0000:", 5))) {
+
 				break;
 			}
 		}
+
 		if (i == num_dev_entries) {
-			fprintf(stderr, "Incorrect device specified, "
-				"HFI discrete device is required\n"
-				"Specify one from the list below:\n");
-			for (i = 0; i < num_dev_entries; i++) {
-				fprintf(stderr, "%s/%s/resource0\n",
-					pci_device_path, pci_device_addrs[i]);
-			}
-			exit(1);
+			invalid_device();
 		}
 	}
 
-	dev_fd = open(dev_name, O_RDWR);
+	printf("Using device: %s\n", resource_file);
+	return true;
+}
+
+int do_init()
+{
+	/*
+	 * If the driver has never been loaded, the device is not
+	 * enabled. Enable the device every time.
+	 */
+	if(!enable_device()) {
+		return -1;
+	}
+
+	int dev_fd = open(resource_file, O_RDWR);
 	if (dev_fd < 0) {
-		fprintf(stderr, "Unable to open file [%s]\n", dev_name);
-		exit(1);
+		fprintf(stderr, "Unable to open file [%s]\n", resource_file);
+		return -1;
 	}
 
 	reg_mem = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED,
-		       dev_fd, 0);
+				dev_fd, 0);
 
 	if (reg_mem == MAP_FAILED) {
-		fprintf(stderr, "Unable to mmap %s, %s\n", dev_name,
+		fprintf(stderr, "Unable to mmap %s, %s\n", resource_file,
 			strerror(errno));
-		exit(1);
+		close(dev_fd);
+		return -1;
 	}
 
 	init_eep_interface(dev_fd);
 
 	return dev_fd;
+}
+
+void do_cleanup(int dev_fd)
+{
+	if (reg_mem)
+		munmap(reg_mem, MAP_SIZE);
+
+	close(dev_fd);
 }
 
 /* ========================================================================== */
@@ -1107,7 +1286,7 @@ void prepare_file(int op, int partition, const char *fname,
 	}
 }
 
-void do_operation(int operation, int dev_fd, int partition, char *fname)
+void do_operation(int operation, int dev_fd, int partition, const char *fname)
 {
 	struct file_info fi;
 
@@ -1130,8 +1309,10 @@ void do_operation(int operation, int dev_fd, int partition, char *fname)
 	} else if (operation == DO_WRITE) {
 		do_erase(dev_fd, &fi);
 		do_write(dev_fd, &fi);
-	} else if (operation == DO_READ || operation == DO_VERSION) {
-		do_read(dev_fd, &fi);
+	} else if (operation == DO_READ) {
+		do_read_file(dev_fd, &fi);
+	} else if (operation == DO_VERSION) {
+		do_read_version(dev_fd, &fi);
 	}
 
 	if (fi.fd >= 0)
@@ -1186,7 +1367,7 @@ void enumerate_devices(void)
 			}
 			strcpy(pci_device_addrs[num_dev_entries], dentry->d_name);
 			num_dev_entries++;
-                }
+		}
 	}
 
 	if (num_dev_entries > 0)
@@ -1196,6 +1377,18 @@ void enumerate_devices(void)
 
 void usage(void)
 {
+	char dev_select_help[256] = "";
+
+	if(num_dev_entries > 0) {
+		snprintf(dev_select_help, sizeof(dev_select_help),
+"                Examples:\n"
+"                  -d %s\n"
+"                  -d %s\n"
+"                  -d %s\n"
+"                  -d all - to select all available devices\n",
+		resource_file, pci_device_addrs[0], PCI_SHORT_ADDR(pci_device_addrs[0]));
+	}
+
 	printf(
 "\n"
 "usage: %s -w [-o loaderfile][-c configfile][-b driverfile][allfile]\n"
@@ -1214,20 +1407,20 @@ void usage(void)
 "  -b driverfile use the EFI driver file (.efi)\n"
 "  -c configfile use the platform configuration file\n"
 "  -d device     specify the device file to use\n"
-"                  [%s]\n"
+"                or list devices if none is specified\n"
+"%s"
 "  -e            erase the given file or all if no file options given\n"
 "  -h            print help\n"
 "  -i            print the EPROM device ID [default]\n"
 "  -o loaderfile use the driver loader (option rom) file (.rom)\n"
 "  -r            read the given file(s) from the EPROM\n"
 "  -s size       override EPROM size, must be power of 2, in Mbits\n"
-"  -v            be more verbose\n"
-"  -V            print the version of the file written in the EPROM\n"
+"  -v            be more verbose. Also print application version\n"
+"  -V            print the version of the file(s) written in the EPROM\n"
 "  -w            write the given file(s) to the EPROM\n"
 "  allfile       name of file to use for reading or writing the whole device\n"
 "\n",
-		command, command, command, command, command, command,
-		resource_file);
+		command, command, command, command, command, command, dev_select_help);
 }
 
 void only_one_operation(void)
@@ -1243,15 +1436,16 @@ int main(int argc, char **argv)
 	uint32_t override_mbits = 0;
 	int operation = DO_NOTHING;
 	char *end;
-	int dev_fd;
 	int opt;
-	int do_oprom_part = 0;
-	int do_config_part = 0;
-	int do_bulk_part = 0;
-	char *oprom_name = NULL;
-	char *config_name = NULL;
-	char *bulk_name = NULL;
-	char *all_name = NULL;
+	bool do_oprom_part = false;
+	bool do_config_part = false;
+	bool do_bulk_part = false;
+	const char *oprom_name = NULL;
+	const char *config_name = NULL;
+	const char *bulk_name = NULL;
+	const char *all_name = NULL;
+	const char** optarg_dst = NULL;
+	bool do_list_devices = false;
 
 	/* isolate the command name */
 	command = strrchr(argv[0], '/');
@@ -1263,45 +1457,51 @@ int main(int argc, char **argv)
 	enumerate_devices();
 
 	/*
-	 * Use ':' at the start of getopt's string return a ':' for options
-	 * that require an argument but don't have one.  Erase and
-	 * version expect individual options to not have an argument.
+	 * 1. Use '-' at the beginning of getopt's string permits arguments
+	 *    that are not options to be returned as if they were associated
+	 *    with option character ‘\1’
+	 * 2. Use ':' at the start of getopt's string return a ':' for options
+	 *    that require an argument but don't have one.  Erase and
+	 *    version expect individual options to not have an argument.
 	 */
-	while ((opt = getopt(argc, argv, ":b:c:d:ehio:rs:vVw")) != -1) {
+	while ((opt = getopt(argc, argv, "-:bcdehiors:vVw")) != -1) {
 		switch (opt) {
-		case ':':
-			switch (optopt) {
-			case 'b':
-				do_bulk_part = 1;
-				break;
-			case 'c':
-				do_config_part = 1;
-				break;
-			case 'o':
-				do_oprom_part = 1;
-				break;
-			default:
-				fprintf(stderr, "An argument is required"
-					" for option '%c'\n", optopt);
+		case '\1':
+			if(optarg_dst) {
+				if(optarg_dst == &dev_name)
+					do_list_devices = false;
+
+				*optarg_dst = optarg;
+			} else {
+				fprintf(stderr, "Unrecognized argument %s\n", optarg);
 				usage();
 				exit(1);
 			}
+			optarg_dst = NULL;
+			break;
+		case ':':
+			fprintf(stderr, "An argument is required"
+				" for option '%c'\n", optopt);
+			usage();
+			exit(1);
 			break;
 		case 'b':
-			do_bulk_part = 1;
-			bulk_name = optarg;
+			do_bulk_part = true;
+			optarg_dst = &bulk_name;
 			break;
 		case 'c':
-			do_config_part = 1;
-			config_name = optarg;
+			do_config_part = true;
+			optarg_dst = &config_name;
 			break;
 		case 'd':
-			dev_name = optarg;
+			do_list_devices = true;
+			optarg_dst = &dev_name;
 			break;
 		case 'e':
 			if (operation != DO_NOTHING)
 				only_one_operation();
 			operation = DO_ERASE;
+			optarg_dst = NULL;
 			break;
 		case 'h':
 			usage();
@@ -1310,15 +1510,17 @@ int main(int argc, char **argv)
 			if (operation != DO_NOTHING)
 				only_one_operation();
 			operation = DO_INFO;
+			optarg_dst = NULL;
 			break;
 		case 'o':
-			do_oprom_part = 1;
-			oprom_name = optarg;
+			do_oprom_part = true;
+			optarg_dst = &oprom_name;
 			break;
 		case 'r':
 			if (operation != DO_NOTHING)
 				only_one_operation();
 			operation = DO_READ;
+			optarg_dst = &all_name;
 			break;
 		case 's':
 			override_mbits = strtoul(optarg, &end, 0);
@@ -1336,34 +1538,55 @@ int main(int argc, char **argv)
 				usage();
 				exit(1);
 			}
+			optarg_dst = NULL;
 			break;
 		case 'w':
 			if (operation != DO_NOTHING)
 				only_one_operation();
 			operation = DO_WRITE;
+			optarg_dst = &all_name;
 			break;
 		case 'v':
 			verbose++;
+			optarg_dst = NULL;
 			break;
 		case 'V':
 			if (operation != DO_NOTHING)
 				only_one_operation();
 			operation = DO_VERSION;
+			optarg_dst = NULL;
 			break;
 		case '?':
+			fprintf(stderr, "Unrecognized option -%c\n", optopt);
 			usage();
 			exit(1);
 			break;
 		}
 	}
 
-	/* first argument is our whole-chip name */
-	if (optind < argc)
-		all_name = argv[optind];
+	if (do_list_devices && operation != DO_NOTHING)
+		only_one_operation();
+
+	if (verbose) {
+		printf("%s %s\n", __DIAGTOOLS_GIT_VERSION,
+			__DIAGTOOLS_GIT_DATE);
+	}
+
+	if (do_list_devices) {
+		list_all_devices(stdout);
+		exit(0);
+	}
 
 	/* if no operation is specified, just gather information */
 	if (operation == DO_NOTHING)
 		operation = DO_INFO;
+
+	if (operation == DO_VERSION && !do_oprom_part && !do_config_part
+				&& !do_bulk_part) {
+		do_oprom_part = true;
+		do_config_part = true;
+		do_bulk_part = true;
+	}
 
 	if ((operation == DO_ERASE || operation == DO_VERSION) && (all_name ||
 					((do_oprom_part && oprom_name)
@@ -1411,69 +1634,75 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/*
-	 * If the driver has never been loaded, the device is not
-	 * enabled. Enable the device every time.
-	 */
-	enable_device();
+	int ret_code = 0;
+	int last_dev = -1;
 
-	/* do steps for all operations */
-	dev_fd = do_init(dev_name);
+	while(choose_device(dev_name, &last_dev)) {
 
-	/* find the size */
-	dev_id = do_info(dev_fd);
-	if (dev_id == 0xFFFFFFFF) {
-		fprintf(stderr, "Unable to read device id.\n");
-		exit(1);
+		/* do steps for all operations */
+
+		int dev_fd = do_init();
+		if(dev_fd < 0) {
+			ret_code = 1;
+			continue;
+		}
+
+		/* find the size */
+		dev_id = do_info(dev_fd);
+		if (dev_id == 0xFFFFFFFF) {
+			fprintf(stderr, "Unable to read device id.\n");
+			ret_code = 1;
+			goto device_cleanup;
+		}
+
+		dev_mbits = find_chip_bit_size(dev_id);
+		if (dev_mbits == 0)
+			printf("Device ID: 0x%08x, unrecognized - no size\n", dev_id);
+		else
+			if (operation == DO_INFO || verbose)
+				printf("Device ID: 0x%08x, %d Mbits\n", dev_id,
+					dev_mbits);
+		if (override_mbits) {
+			if (verbose)
+				printf("Using override size of %d Mbits\n",
+					override_mbits);
+			dev_mbits = override_mbits;
+		}
+
+		/* if only gathering information, we're done */
+		if (operation == DO_INFO)
+			goto device_cleanup;
+
+		/*
+		* Fail if we don't have the device size and the operation
+		* requires knowing the full chip size.
+		*/
+		if (dev_mbits == 0 && (operation == DO_READ || operation == DO_WRITE)
+							&& (all_name || bulk_name)) {
+			fprintf(stderr, "Cannot operate on device without the device size\n");
+			ret_code = 1;
+			goto device_cleanup;
+		}
+
+		/* do the operation(s) */
+		if (all_name || (operation == DO_ERASE
+				&& !(do_oprom_part || do_config_part || do_bulk_part))) {
+			/* doing a whole-chip operation */
+			do_operation(operation, dev_fd, -1, all_name);
+		} else {
+			/* doing an individual partition operation */
+			if (do_oprom_part)
+				do_operation(operation, dev_fd, 0, oprom_name);
+			if (do_bulk_part)
+				do_operation(operation, dev_fd, 2, bulk_name);
+			if (do_config_part)
+				do_operation(operation, dev_fd, 1, config_name);
+		}
+
+	device_cleanup:
+		do_cleanup(dev_fd);
+
 	}
 
-	dev_mbits = find_chip_bit_size(dev_id);
-	if (dev_mbits == 0)
-		printf("Device ID: 0x%08x, unrecognized - no size\n", dev_id);
-	else
-		if (operation == DO_INFO || verbose)
-			printf("Device ID: 0x%08x, %d Mbits\n", dev_id,
-				dev_mbits);
-	if (override_mbits) {
-		if (verbose)
-			printf("Using override size of %d Mbits\n",
-				override_mbits);
-		dev_mbits = override_mbits;
-	}
-
-	/* if only gathering information, we're done */
-	if (operation == DO_INFO)
-		return 0;
-
-	/*
-	 * Fail if we don't have the device size and the operation
-	 * requires knowing the full chip size.
-	 */
-	if (dev_mbits == 0 && (operation == DO_READ || operation == DO_WRITE)
-						&& (all_name || bulk_name)) {
-		fprintf(stderr, "Cannot operate on device without the device size\n");
-		exit(1);
-	}
-
-	/* do the operation(s) */
-	if (all_name || (operation == DO_ERASE
-		    && !(do_oprom_part || do_config_part || do_bulk_part))) {
-		/* doing a whole-chip operation */
-		do_operation(operation, dev_fd, -1, all_name);
-	} else {
-		/* doing an individual partition operation */
-		if (do_oprom_part)
-			do_operation(operation, dev_fd, 0, oprom_name);
-		if (do_config_part)
-			do_operation(operation, dev_fd, 1, config_name);
-		if (do_bulk_part)
-			do_operation(operation, dev_fd, 2, bulk_name);
-	}
-
-	if (reg_mem)
-		munmap(reg_mem, MAP_SIZE);
-
-	close(dev_fd);
-
-	return 0;
+	return ret_code;
 }

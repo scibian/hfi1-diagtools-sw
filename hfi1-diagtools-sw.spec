@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 68
+Release: 84
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -50,23 +50,71 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
-* Mon Aug 7 2017 <grzegorz.morys@intel.com>
-- hfidiags: fix parsing of PCI ID numbers
+* Fri Sep 1 2017 <jay.p.patel@intel.com>
+- hfidiags: Appropriate packaging of readline library
 
-* Tue Aug 1 2017 +0200 <grzegorz.morys@intel.com>
-- hfi1_eprom: remove unnecessary help text print
+* Fri Aug 18 2017 <mitko.haralanov@intel.com>
+- hfidiags: Use correct comparison when checking resource range
 
-* Thu Jul 27 2017 <mitko.haralanov@intel.com>
-- hfidiags: Break resource mappings into sections
+* Fri Aug 18 2017 <mitko.haralanov@intel.com>
+- hfidiags: Add send buffers to memory maps
 
-* Tue Jul 25 2017 <john.fleck@intel.com>
+* Thu Aug 10 2017 <mitko.haralanov@intel.com>
+- hfidiags: 'info' command correctly decodes CSR addresses
+
+* Tue Aug 1 2017 <grzegorz.morys@intel.com>
+- hfidiags: fix device selection
+
+* Tue Jul 25 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: clear progress message
+
+* Tue Jul 25 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: select device by index
+
+* Mon Jul 24 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: print device identifier
+
+* Fri Jul 14 2017 <john.fleck@intel.com>
 - hfi1_control: fix opa version string location
 
-* Mon Jul 17 2017 <navinx.soni@intel.com>
+* Thu Jul 13 2017 <mitko.haralanov@intel.com>
+- hfidiags: Break resource mappings into sections
+
+* Wed Jul 12 2017 <navinx.soni@intel.com>
 - Modifications in hfidiags due to readline library incompatibility.
 
-* Fri Jun 16 2017 <harish.chegondi@intel.com>
+* Tue Jul 11 2017 +0200 <grzegorz.morys@intel.com>
+- hfidiags: fix parsing of PCI ID numbers
+
+* Wed Jul 5 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: build fix for old glibc
+
+* Tue Jul 4 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: device selection enhancements
+
+* Mon Jul 3 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: progress reporting
+
+* Thu Jun 29 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: fix arguments parsing
+
+* Mon Jun 26 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: print version for all EPROM components
+
+* Mon Jun 26 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: remove unnecessary help text print
+
+* Mon Jun 26 2017 <grzegorz.morys@intel.com>
+- hfi1_eprom: add tool version information
+
+* Wed Jun 21 2017 <bartlomiej.dudek@intel.com>
+- hfi1_control: Fix errors regarding SIGINT occurence
+
+* Thu Jun 15 2017 <harish.chegondi@intel.com>
 - Add /usr/include/uapi to the list of include directories to search headers
+
+* Wed Jun 7 2017 +0200 <bartlomiej.dudek@intel.com>
+- hfi1_control: Support rdmavt trace events
 
 * Tue May 23 2017 +0200 <andrzej.kacprowski@intel.com>
 - Add support for Spansion EEPROM in hfi1_eprom tool

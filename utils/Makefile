@@ -44,6 +44,8 @@ $(util_build_dir)/hfi1stats: LDLIBS += -lm
 $(util_build_dir)/hfi1stats: $(util_build_dir)/hfi1stats.o
 	$(CC) $(LDFLAGS) $@.o -o $@ $(LDLIBS)
 
+$(util_build_dir)/hfi1_eprom: LDLIBS = -lrt
+
 ${util_build_dir}/%.o: %.c $(util_build_dir)/%.d
 	$(CC) $(CFLAGS) -c $< -o $@
 

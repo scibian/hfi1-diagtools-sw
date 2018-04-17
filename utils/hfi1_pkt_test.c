@@ -68,7 +68,6 @@
 #include "opa_user.h"
 #include "opa_service.h"
 #include "ipserror.h"
-#include "git_version.h"
 
 #include <linux/stddef.h>
 
