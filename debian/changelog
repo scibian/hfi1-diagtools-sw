@@ -1,4 +1,10 @@
-hfi1-diagtools-sw (0.8-84-2ifs+deb9) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9u1) scibian9; urgency=medium
+
+  * Scibian9 release.
+
+ -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Tue, 17 Apr 2018 14:44:13 +0200
+
+hfi1-diagtools-sw (0.8-84-2ifs+deb9) unstable; urgency=medium
 
    * Branch for stretch.
 
