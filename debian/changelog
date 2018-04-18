@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9+opa10.6u1) scibian9+opa10.6; urgency=medium
+
+  * Stricter aspect specification compliance for version
+
+ -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Wed, 18 Apr 2018 14:38:26 +0200
+
 hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9u1) scibian9; urgency=medium
 
   * Scibian9 release.
