@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u3) scibian9+opa10.6; urgency=medium
+
+  * debian: Only build amd64
+
+ -- Thomas HAMEL <thomas-externe.hamel@edf.fr>  Mon, 30 Apr 2018 17:12:08 +0200
+
 hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u2) scibian9+opa10.6; urgency=medium
 
   * Revert to upstream "-" in the version. Upgrade from scibian8 will
