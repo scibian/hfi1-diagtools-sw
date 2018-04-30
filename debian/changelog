@@ -1,3 +1,10 @@
+hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u2) scibian9+opa10.6; urgency=medium
+
+  * Revert to upstream "-" in the version. Upgrade from scibian8 will
+    need an administrator action.
+
+ -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Mon, 30 Apr 2018 15:49:36 +0200
+
 hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9+opa10.6u1) scibian9+opa10.6; urgency=medium
 
   * Stricter aspect specification compliance for version
