@@ -1,6 +1,6 @@
 Source: hfi1-diagtools-sw
 Maintainer: Brian T. Smith <bsmith@systemfabricworks.com>
-Section: utils
+Section: non-free/utils
 Priority: extra
 Standards-Version: 3.9.8
 Homepage: http://www.intel.com
@@ -14,4 +14,3 @@ Depends: pciutils,
          ${shlibs:Depends},
 Description: Intel HFI1 User Tools
  User utilities for the Intel Host Fabric Interface
-

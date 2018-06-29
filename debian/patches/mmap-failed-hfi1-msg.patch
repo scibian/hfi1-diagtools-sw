@@ -1,0 +1,21 @@
+Description: Inform user that hfi1 conflicts with hfi1_eprom
+ On kernel 4.9, hfi1_eprom's call to mmap on resource0 returns EINVAL when the
+ hfi1 kernel module loaded. This patch informs the user that this may be the
+ cause of mmap failing with EINVAL.
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Forwarded: no
+Last-Update: <2018-05-16>
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/utils/hfi1_eprom.c
++++ b/utils/hfi1_eprom.c
+@@ -1138,6 +1138,9 @@
+ 	if (reg_mem == MAP_FAILED) {
+ 		fprintf(stderr, "Unable to mmap %s, %s\n", resource_file,
+ 			strerror(errno));
++		if (errno == EINVAL) {
++			fprintf(stderr, "The hfi1 module must not be loaded when hfi1_eprom is executed.\n");
++		}
+ 		close(dev_fd);
+ 		return -1;
+ 	}
