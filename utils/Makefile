@@ -32,19 +32,22 @@ else
 ${util_build_dir}/hfi1_pkt_test.o: CFLAGS += -Os
 endif
 
-all: $(util_build_dir)/hfi1_pkt_test $(util_build_dir)/hfi1stats $(util_build_dir)/hfi1_eprom
+all: $(util_build_dir)/hfi1_pkt_test $(util_build_dir)/hfi1stats
+
+clean:
+	rm -f $(util_build_dir)/hfi1_pkt_test
+	rm -f $(util_build_dir)/hfi1stats
+	rm -f $(DEPFILES)
+	rm -f $(DEPFILES:.d=.o)
 
 install: all
 	test -z ${DESTDIR}/usr/bin || mkdir -p ${DESTDIR}/usr/bin
 	install -m 0755 -D $(util_build_dir)/hfi1_pkt_test ${DESTDIR}/usr/bin/hfi1_pkt_test
-	install -m 0755 -D $(util_build_dir)/hfi1_eprom ${DESTDIR}/usr/bin/hfi1_eprom
 	install -m 0755 -D $(util_build_dir)/hfi1stats ${DESTDIR}/usr/bin/hfi1stats
 
 $(util_build_dir)/hfi1stats: LDLIBS += -lm
 $(util_build_dir)/hfi1stats: $(util_build_dir)/hfi1stats.o
 	$(CC) $(LDFLAGS) $@.o -o $@ $(LDLIBS)
-
-$(util_build_dir)/hfi1_eprom: LDLIBS = -lrt
 
 ${util_build_dir}/%.o: %.c $(util_build_dir)/%.d
 	$(CC) $(CFLAGS) -c $< -o $@

@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 84
+Release: 101
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -36,12 +36,10 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root,-)
 /usr/bin/hfi1_pkt_test
-/usr/bin/hfi1_eprom
 /usr/bin/hfi1_pkt_send
 /usr/bin/hfi1_control
 /usr/bin/hfi1stats
 /usr/share/man/man8/hfi1_pkt_test.8.gz
-/usr/share/man/man8/hfi1_eprom.8.gz
 /usr/share/man/man8/hfi1_pkt_send.8.gz
 /usr/share/man/man8/hfi1_control.8.gz
 /usr/share/man/man8/hfi1stats.8.gz
@@ -50,7 +48,58 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
-* Fri Sep 1 2017 <jay.p.patel@intel.com>
+* Mon Feb 5 2018 <niroop.gade@intel.com>
+- hfi1_eprom: Remove hfi1_eprom from hfi1-diagtools-sw package
+
+* Thu Jan 25 2018 <mitko.haralanov@intel.com>
+- hfidiags: Fix check for unit index on multi-unit systems
+
+* Mon Dec 11 2017 <john.fleck@intel.com>
+- hfi1_control: Fix minor spelling error
+
+* Mon Nov 20 2017 +0100 <andrzej.kacprowski@intel.com>
+- hfi1_eprom: Add update -u option and hide dangerous ops
+
+* Mon Nov 6 2017 <tymoteusz.kielan@intel.com>
+- fixup! Update wfr-diagtools-sw Ubuntu build artifacts for IFS 10.7
+
+* Mon Nov 6 2017 <arkadiusz.palinski@intel.com>
+- wfr_oem_tool: Fix klokwork issues
+
+* Mon Nov 6 2017 <tymoteusz.kielan@intel.com>
+- Update wfr-diagtools-sw Ubuntu build artifacts for IFS 10.7
+
+* Thu Nov 2 2017 <sebastian.sanchez@intel.com>
+- hfidiags: Fix device list creation for multi-HFI systems
+
+* Tue Oct 24 2017 <jay.p.patel@intel.com>
+- hfi1_eprom: Validate array index before accessing pci_device_addrs array
+
+* Wed Oct 18 2017 <ira.weiny@intel.com>
+- hfi1_eprom: Add optional meta data print
+
+* Wed Oct 18 2017 <ira.weiny@intel.com>
+- hfi1_eprom: Decode v4 of platform config format
+
+* Fri Oct 13 2017 +0200 <tymoteusz.kielan@intel.com>
+- hfi1_eprom: Fix warning of possible string truncation
+
+* Thu Oct 12 2017 <ira.weiny@intel.com>
+- hfi1_eprom: Add warning/confirmation of write operations
+
+* Thu Oct 12 2017 <ira.weiny@intel.com>
+- hfi1_eprom: Add Partition #defines for use in later patches
+
+* Thu Oct 12 2017 <ira.weiny@intel.com>
+- hfi1_eprom: Add operation string function
+
+* Fri Sep 1 2017 <grzegorz.morys@intel.com>
+- hfi1_eprom: separate files for collective reads
+
+* Fri Sep 1 2017 +0200 <grzegorz.morys@intel.com>
+- hfi1_eprom: help message update
+
+* Wed Aug 23 2017 <jay.p.patel@intel.com>
 - hfidiags: Appropriate packaging of readline library
 
 * Fri Aug 18 2017 <mitko.haralanov@intel.com>
