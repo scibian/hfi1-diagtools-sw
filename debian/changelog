@@ -1,3 +1,21 @@
+hfi1-diagtools-sw (0.8-101-1ifs+deb9sci9+opa10.7u1) scibian9+opa10.7; urgency=medium
+
+  * Scibian9 release with opa10.7
+ 
+ -- Nicolas Meaux <nicolas-externe.meaux@edf.fr>  Thu, 09 Aug 2018 11:57:05 +0200
+
+hfi1-diagtools-sw (0.8-101-1ifs+deb9) UNRELEASED; urgency=medium
+
+   * Import hfi1-diagtools-sw 0.8-101 from IFS RHEL74 10.7.0.0.145 upstream.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 29 Jun 2018 15:57:31 -0500
+
+hfi1-diagtools-sw (0.8-84-3ifs+deb9) UNRELEASED; urgency=medium
+
+   * Inform user that hfi1 module conflicts with hfi1_eprom.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 16 May 2018 14:46:13 -0500
+
 hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u3) scibian9+opa10.6; urgency=medium
 
   * debian: Only build amd64

@@ -16,4 +16,3 @@ Depends: pciutils,
          ${shlibs:Depends},
 Description: Intel HFI1 User Tools
  User utilities for the Intel Host Fabric Interface
-

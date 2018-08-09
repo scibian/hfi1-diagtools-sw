@@ -23,8 +23,8 @@ RELEASE := $(shell if [ -e .git ] ; then git describe --tags --long --match='v*'
 # Concatenated version and release
 VERSION_RELEASE := $(VERSION)-$(RELEASE)
 
-GIT_VERSION := "0.8-84"
-GIT_DATE := "2017-08-21 14:22:53 -0400"
+GIT_VERSION := "0.8-101"
+GIT_DATE := "2017-11-16 16:58:28 -0500"
 
 # so can do, e.g. 'make SUBDIRS=util' to build just one dir
 ifneq (,${BUILDING_32BIT})
@@ -55,12 +55,18 @@ export top_builddir := $(TOP)/infinipath-install/$(targ_arch)/usr
 export top_libdir := $(TOP)/infinipath-install/$(targ_arch)/$(ipath_instlibdir)
 
 all .DEFAULT:
-	for t in $(SUBDIRS); do mkdir -p ${build_dir}/$$t; \
-		$(MAKE) -C $$t $@ || exit 1; done
-
-install: all	
 	for subdir in $(SUBDIRS); do \
-		$(MAKE) -C $$subdir $@ ;\
+		if [ -f $$subdir/Makefile ]; then \
+			mkdir -p ${build_dir}/$$subdir; \
+			$(MAKE) -C $$subdir $@ || exit 1; \
+		fi ; \
+	done
+
+install: all
+	for subdir in $(SUBDIRS); do \
+		if [ -f $$subdir/Makefile ]; then \
+			$(MAKE) -C $$subdir $@ ;\
+		fi ; \
 	done
 
 install-noship:
@@ -71,8 +77,11 @@ install-noship:
 	done
 
 clean:
-	$(MAKE) -C man $@
-	$(MAKE) -C wfr_oem_tool $@
+	for subdir in $(SUBDIRS); do \
+		if [ -f $$subdir/Makefile ]; then \
+			$(MAKE) -C $$subdir $@ ;\
+		fi ; \
+	done
 	rm -rf build/targ-* build/topdrivers build/drivers
 
 package-distclean:
@@ -127,13 +136,13 @@ package-hfi1-diagtools-sw:
 			-name "ib_compliance" -prune -o \
 			-name "diagsgui" -prune -o \
 			-name "makesrpm.sh" -prune -o \
+			-name "makesdeb.sh" -prune -o \
 			-name "bitfields.h" -prune -o \
 			-name "iba_packet.h" -prune -o \
 			-name "qib_7322_regs.h" -prune -o \
 			-name "ib_qib.4" -prune -o \
 			-name "reglat.c" -prune -o \
 			-name "wfr_oem_tool" -prune -o \
-			-name "eprom_unit_test.sh" -prune -o \
 			-print); do \
 		dir=$$(dirname $$x); \
 		mkdir -p ${RPM_NAME}-${VERSION_RELEASE}/$$dir; \
@@ -166,16 +175,12 @@ package-hfidiags-kmod:
 	cp -a ui/* ${RPM_NAME}-${VERSION_RELEASE}
 	cp ${RPM_NAME}.spec ${RPM_NAME}-${VERSION_RELEASE}
 
-# The tar is done twice with the first one discarded. This is because of
-# file system stat issues causing the first tar to fail with errors due
-# to files updating while tar is running. I don't understand this.
 generic-dist: package-distclean specfile package-$(RPM_NAME) git_version
 	if [ -e .git ] ; then \
 		git log -n1 --pretty=format:%H > ${RPM_NAME}-${VERSION_RELEASE}/COMMIT ; \
 	fi
-	-tar czvf ${RPM_NAME}-${VERSION_RELEASE}.tar.gz ${RPM_NAME}-${VERSION_RELEASE} > \
-		/dev/null 2>&1
-	tar czvf ${RPM_NAME}-${VERSION_RELEASE}.tar.gz ${RPM_NAME}-${VERSION_RELEASE} 
+	tar czvf ${RPM_NAME}-${VERSION_RELEASE}.tar.gz ${RPM_NAME}-${VERSION_RELEASE} \
+		--transform=s,hfidiags/debian,debian,
 	rm -rf ${RPM_NAME}-${VERSION_RELEASE}
 
 dist:

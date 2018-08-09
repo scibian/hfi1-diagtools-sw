@@ -53,3 +53,6 @@ endif
 
 install:
 	@echo "Nothing to do for install."
+
+clean:
+
