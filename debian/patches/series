@@ -1,3 +1,5 @@
-fix-Makefile-version-rel.patch
+Makefile-dont-use-git.patch
+Makefile-fix-bashisms.patch
 hfi1_control-pci-ids.patch
 fix-manpage-errors.patch
+hfi1_control-use-board_id.patch

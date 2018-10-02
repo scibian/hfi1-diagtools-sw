@@ -5,7 +5,7 @@ Description: Correct errors in manpage source
 	+ Unterminated diversion.
 Author: Brian T. Smith <bsmith@systemfabricworks.com>
 Forwarded: no
-Last-Update: <2017-12-12>
+Last-Update: <2018-06-20>
 
 ---
 --- a/man/hfi1.4
@@ -52,16 +52,16 @@ Last-Update: <2017-12-12>
 +++ b/man/hfi1_eprom.8
 @@ -1,8 +1,8 @@
  .TH hfi1_eprom 8
--'Copyright (C) 2014-2016. Intel Corporation. All rights reserved.
+-'Copyright (C) 2014-2017. Intel Corporation. All rights reserved.
 -'This is not free software.
 -'Redistribution or modification is prohibited without the prior express
 -'written permission of Intel Corporation.
-+.\"Copyright (C) 2014-2016. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2014-2017. Intel Corporation. All rights reserved.
 +.\"This is not free software.
 +.\"Redistribution or modification is prohibited without the prior express
 +.\"written permission of Intel Corporation.
  .SH NAME
- hfi1_eprom \- Write/read an Intel Fabric HFI1 card EPROM
+ hfi1_eprom \- Update/query images on the Intel Omni-Path HFI Adapter EPROM
  .SH SYNOPSIS
 --- a/man/hfi1_pkt_send.8
 +++ b/man/hfi1_pkt_send.8

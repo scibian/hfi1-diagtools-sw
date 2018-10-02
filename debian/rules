@@ -4,7 +4,11 @@
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
 %:
-	dh $@ --parallel --with autoreconf
+	dh $@ --parallel
+
+.PHONY: override_dh_strip
+override_dh_strip:
+	dh_strip --dbg-package=hfi1-diagtools-sw-dbg
 
 .PHONY: override_dh_installdocs
 override_dh_installdocs:
