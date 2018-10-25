@@ -4,7 +4,7 @@ Upstream-Contact: Intel Corporation https://www.intel.com
 Source: IntelOPA-IFS release at https://www.intel.com
 
 Files: *
-Copyright: 2013-2017 Intel Corporation
+Copyright: 2013-2018 Intel Corporation
 License: Intel-SLA
 
 Files: debian/*

@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 101
+Release: 104
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -48,14 +48,23 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
-* Mon Feb 5 2018 <niroop.gade@intel.com>
+* Mon Feb 26 2018 <mike.marciniszyn@intel.com>
+- Add test to reproduce late_ebp error
+
+* Thu Feb 22 2018 <mike.marciniszyn@intel.com>
+- Add test for input multicast packet marked with FECN
+
+* Wed Jan 31 2018 <niroop.gade@intel.com>
 - hfi1_eprom: Remove hfi1_eprom from hfi1-diagtools-sw package
 
-* Thu Jan 25 2018 <mitko.haralanov@intel.com>
+* Fri Jan 5 2018 <mitko.haralanov@intel.com>
 - hfidiags: Fix check for unit index on multi-unit systems
 
-* Mon Dec 11 2017 <john.fleck@intel.com>
+* Fri Dec 8 2017 <john.fleck@intel.com>
 - hfi1_control: Fix minor spelling error
+
+* Sat Dec 2 2017 <john.fleck@intel.com>
+- hfi1_eprom.c: Update return code when service mode not selected
 
 * Mon Nov 20 2017 +0100 <andrzej.kacprowski@intel.com>
 - hfi1_eprom: Add update -u option and hide dangerous ops

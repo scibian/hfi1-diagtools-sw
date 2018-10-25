@@ -2,4 +2,5 @@ Makefile-dont-use-git.patch
 Makefile-fix-bashisms.patch
 hfi1_control-pci-ids.patch
 fix-manpage-errors.patch
-mmap-failed-hfi1-msg.patch
+hfi1_control-use-board_id.patch
+
