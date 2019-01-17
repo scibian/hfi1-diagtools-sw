@@ -63,6 +63,10 @@
 
 #define NO_4KB_BLOCK_ERASE_WA 1
 
+
+#define MAX_PLATFORM_CONFIG_SIZE            2048
+#define PLATFORM_CONFIG_FORMAT_4_FILE_SIZE  528
+
 /*
  * Dividing points between the partitions.
  */
@@ -149,6 +153,14 @@ struct file_info {
 #define DO_ERASE   3
 #define DO_INFO	   4
 #define DO_VERSION 5
+#define DO_UPDATE  6
+
+/* Partitions */
+#define PART_NONE   -2
+#define PART_ALL    -1
+#define PART_OPROM   0
+#define PART_CONFIG  1
+#define PART_BULK    2
 
 /* Status Register 1 bits */
 #define SR1_BUSY 0x1	/* the BUSY bit in SR1 */
@@ -202,33 +214,50 @@ enum platform_config_system_table_fields {
 	SYSTEM_TABLE_MAX
 };
 
+#define ROM_IMAGE_SIGNATURE       0xAA55
+#define EFI_IMAGE_SIGNATURE       0x5A4D
+
 /* platform config file magic number (4 bytes) */
 #define PLATFORM_CONFIG_MAGIC_NUM 0x3d4f5041
 
 /* string in front of the verison string for oprom and driver files */
 const char version_magic[] = "VersionString:";
 
-/* buffer size for platform config node string */
-#define VBUF_MAX 64
+/* buffer size for platform config version info */
+#define VBUF_MAX 128
 #define MAX_DEV_ENTRIES 128
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 /*
  * PCI bus address if formatted as:
  * domain:bus:slot.function (dddd:bb:ss.f)
  * 13 chars required, rounder up to power of 2
  */
 #define MAX_PCI_BUS_LEN 16
-#define MAX_DEV_NAME 255
+#define MAX_DEV_NAME 256
 #define PCI_SHORT_ADDR(PCI_ADDR) (&(PCI_ADDR)[5])
 
+const char pci_device_path[] = "/sys/bus/pci/devices";
 int num_dev_entries = 0;
 char pci_device_addrs[MAX_DEV_ENTRIES][MAX_PCI_BUS_LEN];
-char resource_file[MAX_DEV_NAME] = "";
-char enable_file[MAX_DEV_NAME] = "";
-const char pci_device_path[] = "/sys/bus/pci/devices";
+const char resource_fmt[] = "%s/%s/resource0";
+char resource_file[sizeof(pci_device_path) + sizeof(resource_fmt) + MAX_PCI_BUS_LEN] = "";
+const char enable_fmt[] = "%s/%s/enable";
+char enable_file[sizeof(pci_device_path) + sizeof(enable_fmt) + MAX_PCI_BUS_LEN] = "";
+const char device_fmt[] = "%s/%s/device";
+char device_file[sizeof(pci_device_path) + sizeof(device_fmt) + MAX_DEV_NAME] = "";
 const char *command;		/* derived command name */
 uint32_t dev_id;		/* EEPROM device identification */
 uint32_t dev_mbits;		/* device megabit size */
 int verbose;
+int read_op_cnt = 0;
+char tmp_fname[PATH_MAX];
+bool silence_warnings = false;
+bool print_meta = false;
+bool service_mode = false;
 
 const struct size_info {
 	uint32_t dev_id;		/* device */
@@ -500,7 +529,7 @@ void prepare_file(int op, int partition, const char *fname,
 void erase_range_slow(int dev_fd, uint32_t start, uint32_t len)
 {
 	struct file_info tmp_fi;
-	prepare_file(DO_VERSION, -1, "chip", &tmp_fi);
+	prepare_file(DO_VERSION, PART_ALL, "chip", &tmp_fi);
 
 	do_read(dev_fd, &tmp_fi);
 	if (is_all_1s(tmp_fi.buffer + start, len)) {
@@ -688,6 +717,69 @@ void *find_string_in_buffer(const uint8_t *buffer, int size, const char *str)
 	return NULL; /* not found */
 }
 
+static char *print_meta_ver(const uint32_t *sys_table_data,
+			    uint32_t meta_ver_field_def,
+			    char *str, size_t size)
+{
+	uint32_t mask;
+	int offset = 0;
+	int len = 0;
+
+	if (meta_ver_field_def == 0) {
+		snprintf(str, size, "[meta : <unknown>]");
+		goto done;
+	}
+
+	mask = mask_of(METADATA_TABLE_FIELD_START_LEN_BITS);
+	offset = meta_ver_field_def & mask;
+
+	meta_ver_field_def >>= METADATA_TABLE_FIELD_LEN_SHIFT;
+	mask = mask_of(METADATA_TABLE_FIELD_LEN_LEN_BITS);
+	len = meta_ver_field_def & mask;
+
+	offset /= 8;	/* change to bytes */
+
+	meta_ver_field_def = *((uint8_t *)sys_table_data + offset) & mask_of(len);
+	snprintf(str, size, "[meta : 0x%0*X]", len/4, meta_ver_field_def);
+
+done:
+	return str;
+}
+
+/*
+ * Retrieve version string from rom of efi driver image
+ */
+int get_version_string(uint8_t *buf, int size, char *out_buf,
+		       int out_size)
+{
+	uint8_t *vers;
+	int offset;
+	int i;
+	uint8_t c;
+	int found = 0;
+
+
+	/* look for version magic in the data */
+	vers = find_string_in_buffer((void*)buf, size, version_magic);
+	if (vers) {
+		found = 1;
+		/*
+		 * Expect the version string to immediately
+		 * follow the version magic in a C string.
+		 * Copy it out, but keep checking for buffer
+		 * end to be on the safe side.
+		 */
+		offset = (int)(vers - buf);
+		for (i = 0; i < out_size && i+offset < size; i++) {
+			c = buf[i+offset];
+			if (c == 0)
+				break;
+			out_buf[i] = c;
+		}
+	}
+	return found;
+}
+
 /*
  * Look through the platform config file in buffer and extract the
  * NODE_STRING, placing it in out_buf.
@@ -709,6 +801,7 @@ int parse_platform_config(const void *buffer, int size, char *out_buf,
 	int found_metadata = 0;
 	int ns_start = 0;
 	int ns_len = 0;
+	uint32_t meta_ver_field_def = 0;
 
 	/* read magic */
 	temp = *ptr;
@@ -724,12 +817,11 @@ int parse_platform_config(const void *buffer, int size, char *out_buf,
 		printf("%s: file length %d (buffer size %d)\n",
 			__func__, file_length, size);
 	}
-	if (file_length > size) {
-		printf("%s: file length %d is larger than buffer %d\n",
-			__func__, file_length, size);
-		return 0; /* fail */
-	}
-	ptr++;
+
+	if (file_length > MAX_PLATFORM_CONFIG_SIZE)
+		file_length = PLATFORM_CONFIG_FORMAT_4_FILE_SIZE;
+	else
+		ptr++;
 
 	/* this is the valid bounds within the file */
 	end = (uint32_t *)(buffer + file_length);
@@ -772,6 +864,7 @@ int parse_platform_config(const void *buffer, int size, char *out_buf,
 			} else { /* the metadata */
 				ns_metadata = *(ptr + SYSTEM_TABLE_NODE_STRING);
 				found_metadata = 1;
+				meta_ver_field_def = *(ptr + SYSTEM_TABLE_META_VERSION);
 			}
 		}
 
@@ -827,6 +920,16 @@ int parse_platform_config(const void *buffer, int size, char *out_buf,
 	vers = ((const char *)sys_table_data) + ns_start;
 	memcpy(out_buf, vers, ns_len);
 
+	if (print_meta) {
+		ns_len = strlen(out_buf);
+		out_buf[ns_len] = ' ';
+		ns_len++;
+		out_buf += ns_len;
+		out_size -= ns_len;
+		print_meta_ver(sys_table_data, meta_ver_field_def,
+			       out_buf, out_size);
+	}
+
 	return 1; /* success */
 }
 
@@ -834,13 +937,9 @@ int parse_platform_config(const void *buffer, int size, char *out_buf,
 void print_data_version(struct file_info *fi)
 {
 	uint8_t *buf;
-	uint8_t *vers;
 	char vers_buf[VBUF_MAX+1]; /* +1 for terminator */
 	int found = 0;
 	int size;
-	int offset;
-	int i;
-	char c;
 
 	buf = fi->buffer;
 	size = fi->bsize;
@@ -855,27 +954,10 @@ void print_data_version(struct file_info *fi)
 		return;
 	}
 
-	if (fi->part == 0 || fi->part == 2) {
+	if (fi->part == PART_OPROM || fi->part == PART_BULK) {
 		/* UEFI drivers */
-		/* look for version magic in the data */
-		vers = find_string_in_buffer(buf, size, version_magic);
-		if (vers) {
-			found = 1;
-			/*
-			 * Expect the version string to immediately
-			 * follow the version magic in a C string.
-			 * Copy it out, but keep checking for buffer
-			 * end to be on the safe side.
-			 */
-			offset = (int)(vers - buf);
-			for (i = 0; i < VBUF_MAX && i+offset < size; i++) {
-				c = buf[i+offset];
-				if (c == 0)
-					break;
-				vers_buf[i] = c;
-			}
-		}
-	} else if (fi->part == 1) {
+		found = get_version_string(buf, size, vers_buf, VBUF_MAX);
+	} else if (fi->part == PART_CONFIG) {
 		/* platform config file */
 		found = parse_platform_config(buf, size, vers_buf, VBUF_MAX);
 	} else {
@@ -1028,17 +1110,22 @@ bool enable_device()
 	return true;
 }
 
-void set_pci_files(int entry)
-{
-	snprintf(resource_file, sizeof(resource_file),
-		"%s/%s/resource0", pci_device_path, pci_device_addrs[entry]);
-	snprintf(enable_file, sizeof(enable_file),
-		"%s/%s/enable", pci_device_path, pci_device_addrs[entry]);
-}
-
 bool is_valid_dev(int dev_entry)
 {
-	return dev_entry >= 0 && dev_entry < num_dev_entries;
+        return dev_entry >= 0 && dev_entry < num_dev_entries;
+}
+
+bool set_pci_files(int entry)
+{
+	if(!is_valid_dev(entry))
+		return false;
+
+	snprintf(resource_file, sizeof(resource_file),
+		resource_fmt, pci_device_path, pci_device_addrs[entry]);
+	snprintf(enable_file, sizeof(enable_file),
+		enable_fmt, pci_device_path, pci_device_addrs[entry]);
+
+	return true;
 }
 
 void list_all_devices(FILE* file)
@@ -1069,15 +1156,13 @@ bool choose_device(const char* dev_name, int* last_dev)
 			return false;
 
 		set_pci_files(0);
+
 		*last_dev = 0;
 
 	} else if (!strcmp(dev_name, "all")) {
 		*last_dev += 1;
-
-		if(!is_valid_dev(*last_dev))
+		if(!set_pci_files(*last_dev))
 			return false;
-
-		set_pci_files(*last_dev);
 
 	} else if (i = atoi(dev_name), sprintf(buffer, "%d", i),
 			0 == strcmp(dev_name, buffer)) {
@@ -1085,11 +1170,9 @@ bool choose_device(const char* dev_name, int* last_dev)
 		if(is_valid_dev(*last_dev))
 			return false;
 
-		if (i >= num_dev_entries) {
+		if (!set_pci_files(i))
 			invalid_device();
-		}
 
-		set_pci_files(i);
 		*last_dev = i;
 	} else {
 		if(is_valid_dev(*last_dev))
@@ -1160,13 +1243,11 @@ void do_cleanup(int dev_fd)
 /* return the file name */
 const char *file_name(int part)
 {
-	if (part < 0)
-		return "whole chip";
-
 	switch (part) {
-	case 0: return "loader file";
-	case 1: return "config file";
-	case 2: return "driver file";
+	case PART_ALL: return "whole chip";
+	case PART_OPROM: return "loader file";
+	case PART_CONFIG: return "config file";
+	case PART_BULK: return "driver file";
 	}
 	return "unknown";
 }
@@ -1182,6 +1263,12 @@ void prepare_file(int op, int partition, const char *fname,
 	mode_t mode;
 
 	fi->name = fname;
+	if(op == DO_READ && read_op_cnt++ > 0)
+	{
+		snprintf(tmp_fname, ARRAY_SIZE(tmp_fname), "%s_%d", fname, read_op_cnt-1);
+		fi->name = tmp_fname;
+	}
+
 	fi->part = partition;
 	fi->fd = -1;
 	fi->buffer = NULL;
@@ -1190,13 +1277,13 @@ void prepare_file(int op, int partition, const char *fname,
 	if (fi->part < 0) {
 		fi->start = 0;
 		fi->bsize = (dev_mbits * ((1024*1024) / 8));
-	} else if (fi->part == 0) {
+	} else if (fi->part == PART_OPROM) {
 		fi->start = 0;
 		fi->bsize = P0_SIZE;
-	} else if (fi->part == 1) {
+	} else if (fi->part == PART_CONFIG) {
 		fi->start = P1_START;
 		fi->bsize = P1_SIZE;
-	} else if (fi->part == 2) {
+	} else if (fi->part == PART_BULK) {
 		fi->start = P2_START;
 		if (dev_mbits == 0)
 			fi->bsize = 0;
@@ -1209,7 +1296,7 @@ void prepare_file(int op, int partition, const char *fname,
 		return;
 	}
 
-	if (op == DO_READ || op == DO_WRITE) {
+	if (op == DO_READ || op == DO_WRITE || op == DO_UPDATE) {
 		/* open our file system file */
 		if (op == DO_READ) {
 			/* read from EPROM, write to file */
@@ -1252,7 +1339,7 @@ void prepare_file(int op, int partition, const char *fname,
 	memset(fi->buffer, 0xff, fi->bsize);
 
 	/* if writing, read from file into buffer */
-	if (op == DO_WRITE) {
+	if (op == DO_WRITE || op == DO_UPDATE) {
 		struct stat sbuf;
 
 		if (fstat(fi->fd, &sbuf) == -1) {
@@ -1286,14 +1373,91 @@ void prepare_file(int op, int partition, const char *fname,
 	}
 }
 
+char *operation_str(int operation)
+{
+	switch (operation) {
+		case DO_NOTHING: return "DO NOTHING";
+		case DO_READ:    return "READ from";
+		case DO_WRITE:   return "WRITE to";
+		case DO_ERASE:   return "ERASE";
+		case DO_INFO:    return "read INFO from";
+		case DO_VERSION: return "read VERSION from";
+		case DO_UPDATE:  return "update ";
+	}
+	return "<unknown>";
+}
+
+void print_config_change_warning(void) {
+
+		printf(
+"\n"
+"     ***** WARNING *****\n"
+"\n"
+"     Modification of HFI platform configuration may prevent the\n"
+"     HFI from training the link.\n"
+"\n"
+"     Care should be taken to ensure that platform configuration\n"
+"     information being written is correct for the HFI model being\n"
+"     targeted.  If unsure contact support.\n"
+"\n"
+"     ***** WARNING *****\n"
+"\n"
+		);
+}
+
+void verify_with_user(int operation) {
+	char response[128];
+	char *rc;
+
+	printf (
+"\n"
+"To silence this warning see option \"-y\"\n"
+"\n"
+"You are about to %s %s\n"
+"     do you wish too proceed (\"Yes\" to continue)? ",
+		operation_str(operation), resource_file);
+
+	rc = fgets(response, sizeof(response), stdin);
+	if (rc == NULL)
+		exit(1);
+
+	response[strcspn(response, " \t\n\0")] = '\0';
+
+	if (strncmp(response, "Yes", sizeof(response)) != 0)
+		exit(1);
+
+	printf ( "\nProceeding with %s device %s\n",
+		operation_str(operation), resource_file);
+}
+
+void warn_user(int operation, int partition)
+{
+	if (silence_warnings)
+		return;
+
+	if (operation == DO_ERASE || operation == DO_WRITE) {
+		if (partition == PART_CONFIG)
+			print_config_change_warning();
+
+		verify_with_user(operation);
+	}
+
+	if (operation == DO_UPDATE && partition == PART_CONFIG) {
+		print_config_change_warning();
+		verify_with_user(operation);
+	}
+}
+
 void do_operation(int operation, int dev_fd, int partition, const char *fname)
 {
 	struct file_info fi;
 
+	warn_user(operation, partition);
+
 	/* open file if needed, get sizes */
 	prepare_file(operation, partition, fname, &fi);
 	if (verbose) {
-		printf("Operation %d\n", operation);
+		printf("Operation \"%s\"\n", operation_str(operation));
 		printf("File information:\n");
 		printf("  part   %d\n", fi.part);
 		printf("  fname   %s\n", fi.name);
@@ -1307,6 +1471,9 @@ void do_operation(int operation, int dev_fd, int partition, const char *fname)
 	if (operation == DO_ERASE) {
 		do_erase(dev_fd, &fi);
 	} else if (operation == DO_WRITE) {
+		do_erase(dev_fd, &fi);
+		do_write(dev_fd, &fi);
+	} else if (operation == DO_UPDATE) {
 		do_erase(dev_fd, &fi);
 		do_write(dev_fd, &fi);
 	} else if (operation == DO_READ) {
@@ -1339,14 +1506,13 @@ void enumerate_devices(void)
 	num_dev_entries = 0;
 	while ((dentry = readdir(dir))) {
 		FILE *file;
-		char dev_file[MAX_DEV_NAME];
 		char buf[7];
 		char *buf_ptr;
 
-		snprintf(dev_file, sizeof(dev_file), "%s/%s/device", pci_device_path, dentry->d_name);
+		snprintf(device_file, sizeof(device_file), device_fmt, pci_device_path, dentry->d_name);
 
 		/* try to open the file, it may error, ignore */
-		file = fopen(dev_file, "r");
+		file = fopen(device_file, "r");
 		if (!file)
 			continue;
 
@@ -1375,57 +1541,164 @@ void enumerate_devices(void)
 	closedir(dir);
 }
 
-void usage(void)
-{
-	char dev_select_help[256] = "";
+/* Function detects if file is valid OPA driver image
+ * or platform configuration file.
+ * Currently checks file signature and version
+ */
+int get_image_type(const char *fname) {
+	int fd;
+	struct stat sbuf;
+	int part = PART_NONE;
+	ssize_t nread;
+	void* buf = NULL;
+	char vers_buf[VBUF_MAX+1] = {}; /* +1 for terminator */
 
-	if(num_dev_entries > 0) {
-		snprintf(dev_select_help, sizeof(dev_select_help),
-"                Examples:\n"
-"                  -d %s\n"
-"                  -d %s\n"
-"                  -d %s\n"
-"                  -d all - to select all available devices\n",
-		resource_file, pci_device_addrs[0], PCI_SHORT_ADDR(pci_device_addrs[0]));
+
+	fd = open(fname, O_RDONLY, 0);
+	if (fd < 0) {
+		fprintf(stderr, "Cannot open file \"%s\": %s\n",
+			fname, strerror(errno));
+		goto done;
+	}
+	if (fstat(fd, &sbuf) == -1) {
+		fprintf(stderr, "Unable to stat \"%s\": %s\n",
+			fname, strerror(errno));
+		goto done;
+	}
+	if (!S_ISREG(sbuf.st_mode)) {
+		if (verbose) {
+			printf("File  \"%s\" is not a regilar file\n",fname);
+		}
+		goto done;
+	}
+	if (sbuf.st_size < 8 || sbuf.st_size > 1000000) {
+		if (verbose) {
+			printf("Unexpectd file size \"%s\": %ld\n",
+			       fname, sbuf.st_size);
+		}
+		goto done;
+
 	}
 
-	printf(
-"\n"
-"usage: %s -w [-o loaderfile][-c configfile][-b driverfile][allfile]\n"
-"       %s -r [-o loaderfile][-c configfile][-b driverfile][allfile]\n"
-"       %s -e [-o][-c][-b]\n"
-"       %s -V [-o][-c][-b]\n"
-"       %s -i\n"
-"       %s -h\n"
-"\n"
-"Write, read, erase, or gather information on the Intel Omni-Path Architecture\n"
-"fabric EPROM.  Only one operation may be performed per invocation.  If no\n"
-"operation is given, info is used.  Read, write, and erase may be performed\n"
-"on a specific file, or the whole device.\n"
-"\n"
-"Options:\n"
-"  -b driverfile use the EFI driver file (.efi)\n"
-"  -c configfile use the platform configuration file\n"
-"  -d device     specify the device file to use\n"
-"                or list devices if none is specified\n"
-"%s"
-"  -e            erase the given file or all if no file options given\n"
-"  -h            print help\n"
-"  -i            print the EPROM device ID [default]\n"
-"  -o loaderfile use the driver loader (option rom) file (.rom)\n"
-"  -r            read the given file(s) from the EPROM\n"
-"  -s size       override EPROM size, must be power of 2, in Mbits\n"
-"  -v            be more verbose. Also print application version\n"
-"  -V            print the version of the file(s) written in the EPROM\n"
-"  -w            write the given file(s) to the EPROM\n"
-"  allfile       name of file to use for reading or writing the whole device\n"
-"\n",
-		command, command, command, command, command, command, dev_select_help);
+	buf = malloc(sbuf.st_size + 4);
+	if (!buf) {
+		goto done;
+	}
+	nread = read(fd, buf, sbuf.st_size);
+	if (nread != sbuf.st_size) {
+		fprintf(stderr, "Read only %ld of expectd %ld bytes for \"%s\"\n",
+			nread, sbuf.st_size, fname);
+		goto done;
+	}
+	if (*(uint16_t*)buf == ROM_IMAGE_SIGNATURE) {
+		if (get_version_string(buf, sbuf.st_size, vers_buf, VBUF_MAX)) {
+			part = PART_OPROM;
+		}
+	} else if (*(uint16_t*)buf == EFI_IMAGE_SIGNATURE) {
+		if (get_version_string(buf, sbuf.st_size, vers_buf, VBUF_MAX)) {
+			part = PART_BULK;
+		}
+	} else if (*(uint32_t*)buf == PLATFORM_CONFIG_MAGIC_NUM) {
+		if (parse_platform_config(buf, sbuf.st_size, vers_buf, VBUF_MAX)) {
+			part = PART_CONFIG;
+		}
+	}
+
+done:
+	if (fd) {
+		close(fd);
+	}
+	if (buf) {
+		free(buf);
+	}
+	return part;
+}
+
+
+void usage(void)
+{
+	char dev_select_help[512] = "";
+
+	snprintf(dev_select_help, sizeof(dev_select_help),
+		 "                Examples:\n"
+		 "                  -d %s\n"
+		 "                  -d %s\n"
+		 "                  -d %s\n"
+		 "                  -d %d\n"
+		 "                  -d all - to select all available devices\n"
+		 "                  -d     - to list all available devices\n",
+		 resource_file, pci_device_addrs[0], PCI_SHORT_ADDR(pci_device_addrs[0]), 0);
+
+	printf("\n"
+	       "Usage: hfi1_eprom [-d device] -u [loaderfile] [driverfile]\n"
+	       "       hfi1_eprom [-d device] -V\n"
+	       "       hfi1_eprom -h\n"
+	       "       hfi1_eprom -S\n"
+	       "\n"
+	       "Update or list image versions on Intel Omni-Path HFI Adapter EPROM\n"
+	       "\n"
+	       "Options:\n"
+	       "  -u            update the given file(s) on the EPROM\n"
+	       "  -V            print the versions of all files written in the EPROM\n"
+	       "  -d device     specify the device file to use\n"
+	       "                or list devices if none is specified\n"
+	       "%s"
+	       "  -v            verbose output, also print application version\n"
+	       "  -h            print help\n"
+	       "  -S            service mode with additional options\n"
+	       "\nExamples:\n"
+	       "  hfi1_eprom -d all -u /usr/share/opa/bios_images/*\n"
+	       "  hfi1_eprom -d all -V\n"
+	       "\n", dev_select_help);
+
+	if (!service_mode)
+		return;
+
+	printf("\nService mode:\n"
+	       "     ***** WARNING *****\n"
+	       "\n"
+	       "     Service options may corrupt HFI adapter EPROM contents.\n"
+	       "     Use with caution!\n"
+	       "\n"
+	       "     ***** WARNING *****\n"
+	       "Usage: hfi1_eprom -S -w [-o loaderfile][-c configfile][-b driverfile][allfile]\n"
+	       "       hfi1_eprom -S -r [-o loaderfile][-c configfile][-b driverfile][allfile]\n"
+	       "       hfi1_eprom -S -e [-o][-c][-b]\n"
+	       "       hfi1_eprom -S -u [configfile]\n"
+	       "       hfi1_eprom -S -i\n"
+	       "\n"
+	       "Write, read or erase images on Intel Omni-Path HFI adapter EPROM.\n"
+	       "Above operation may be performed on a specific file or the whole device.\n"
+	       "\n"
+	       "Options:\n"
+	       "  -w              write the given file(s) to the EPROM\n"
+	       "  -r              read the given file(s) from the EPROM\n"
+	       "  -e              erase the given file type or whole EPROM\n"
+	       "    allfile       name of file to use for reading or writing the whole device\n"
+	       "    -o loaderfile use the driver loader (option rom) file (.rom)\n"
+	       "    -b driverfile use the EFI driver file (.efi)\n"
+	       "    -c configfile use the platform configuration file\n");
+
+
+	print_config_change_warning();
+
+	printf("  -m              show format version of platform configuration file\n"
+	       "  -i              print the EPROM device ID\n"
+	       "  -s size         override EPROM size, must be power of 2, in Mbits\n"
+	       "  -y              Answer (y)es : Silence warnings and confirmations\n"
+	       "\n");
 }
 
 void only_one_operation(void)
 {
 	fprintf(stderr, "Only one operation may be performed at a time\n");
+	usage();
+	exit(1);
+}
+
+void do_error(const char *message)
+{
+	fprintf(stderr, message);
 	usage();
 	exit(1);
 }
@@ -1444,6 +1717,9 @@ int main(int argc, char **argv)
 	const char *config_name = NULL;
 	const char *bulk_name = NULL;
 	const char *all_name = NULL;
+	#define MAX_UPDATE_NAMES  8
+	const char *update_name[MAX_UPDATE_NAMES + 1] = {};
+	int update_name_count = 0;
 	const char** optarg_dst = NULL;
 	bool do_list_devices = false;
 
@@ -1464,20 +1740,29 @@ int main(int argc, char **argv)
 	 *    that require an argument but don't have one.  Erase and
 	 *    version expect individual options to not have an argument.
 	 */
-	while ((opt = getopt(argc, argv, "-:bcdehiors:vVw")) != -1) {
+	while ((opt = getopt(argc, argv, "-:bcdeShiors:vVwuym")) != -1) {
 		switch (opt) {
 		case '\1':
-			if(optarg_dst) {
-				if(optarg_dst == &dev_name)
-					do_list_devices = false;
-
-				*optarg_dst = optarg;
-			} else {
+			if(!optarg_dst) {
 				fprintf(stderr, "Unrecognized argument %s\n", optarg);
 				usage();
 				exit(1);
 			}
-			optarg_dst = NULL;
+			if(optarg_dst == &dev_name)
+				do_list_devices = false;
+
+			*optarg_dst = optarg;
+			if (optarg_dst == &update_name[update_name_count]) {
+				if (update_name_count >= MAX_UPDATE_NAMES) {
+					fprintf(stderr, "Too many file names\n");
+					usage();
+					exit(1);
+				}
+
+				optarg_dst = &update_name[++update_name_count];
+			} else {
+				optarg_dst = NULL;
+			}
 			break;
 		case ':':
 			fprintf(stderr, "An argument is required"
@@ -1546,6 +1831,12 @@ int main(int argc, char **argv)
 			operation = DO_WRITE;
 			optarg_dst = &all_name;
 			break;
+		case 'u':
+			if (operation != DO_NOTHING)
+				only_one_operation();
+			operation = DO_UPDATE;
+			optarg_dst = &update_name[0];
+			break;
 		case 'v':
 			verbose++;
 			optarg_dst = NULL;
@@ -1555,6 +1846,15 @@ int main(int argc, char **argv)
 				only_one_operation();
 			operation = DO_VERSION;
 			optarg_dst = NULL;
+			break;
+		case 'm':
+			print_meta = true;
+			break;
+		case 'y':
+			silence_warnings = true;
+			break;
+		case 'S':
+			service_mode = true;
 			break;
 		case '?':
 			fprintf(stderr, "Unrecognized option -%c\n", optopt);
@@ -1577,15 +1877,77 @@ int main(int argc, char **argv)
 		exit(0);
 	}
 
-	/* if no operation is specified, just gather information */
-	if (operation == DO_NOTHING)
-		operation = DO_INFO;
+	if (operation == DO_UPDATE) {
+		int part;
+		int update_count = 0;
+		int i;
+
+		if (update_name_count == 0) {
+			do_error("Update command requires at least 1 file name\n)");
+		}
+
+		for (i = 0; i < update_name_count; i++) {
+			part = get_image_type(update_name[i]);
+			switch (part) {
+			case PART_OPROM:
+				if (do_oprom_part) {
+					do_error("Too many oprom files\n");
+				}
+				do_oprom_part = true;
+				oprom_name = update_name[i];
+				break;
+			case PART_BULK:
+				if (do_bulk_part) {
+					do_error("Too many driver files\n");
+				}
+				do_bulk_part = true;
+				bulk_name = update_name[i];
+				break;
+			case PART_CONFIG:
+				if (service_mode) {
+					if (do_config_part) {
+						do_error("Too many configuration files\n");
+					}
+					do_config_part = true;
+					config_name = update_name[i];
+					break;
+				}
+				/* Fall through - ignore config file if not
+				 * in service mode
+				 */
+			default:
+				if (verbose) {
+					printf("File %s not recognized\n",
+					       update_name[i]);
+				}
+				continue;
+			}
+			printf("Updating %s with \"%s\"\n",
+			       file_name(part), update_name[i]);
+			update_count++;
+		}
+		if (!update_count) {
+			do_error("No valid loader (.rom) or driver (.efi) file found\n");
+		}
+	}
+
+	/* if no operation is specified, print usage */
+	if (operation == DO_NOTHING) {
+		usage();
+		exit(0);
+	}
 
 	if (operation == DO_VERSION && !do_oprom_part && !do_config_part
 				&& !do_bulk_part) {
 		do_oprom_part = true;
 		do_config_part = true;
 		do_bulk_part = true;
+	}
+
+	if (!service_mode &&
+	    !(operation == DO_UPDATE || operation == DO_VERSION)) {
+		usage();
+		exit(1);
 	}
 
 	if ((operation == DO_ERASE || operation == DO_VERSION) && (all_name ||
@@ -1688,15 +2050,15 @@ int main(int argc, char **argv)
 		if (all_name || (operation == DO_ERASE
 				&& !(do_oprom_part || do_config_part || do_bulk_part))) {
 			/* doing a whole-chip operation */
-			do_operation(operation, dev_fd, -1, all_name);
+			do_operation(operation, dev_fd, PART_ALL, all_name);
 		} else {
 			/* doing an individual partition operation */
 			if (do_oprom_part)
-				do_operation(operation, dev_fd, 0, oprom_name);
+				do_operation(operation, dev_fd, PART_OPROM, oprom_name);
 			if (do_bulk_part)
-				do_operation(operation, dev_fd, 2, bulk_name);
+				do_operation(operation, dev_fd, PART_BULK, bulk_name);
 			if (do_config_part)
-				do_operation(operation, dev_fd, 1, config_name);
+				do_operation(operation, dev_fd, PART_CONFIG, config_name);
 		}
 
 	device_cleanup:

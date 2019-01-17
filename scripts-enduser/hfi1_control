@@ -264,7 +264,7 @@ function bitmask2strings() {
 function supportedcaps() {
     local cap=
 
-    echo "List of driver capabilites:"
+    echo "List of driver capabilities:"
     for cap in ${!CAP_MASK_ARRAY[@]}; do
 	echo -e "\t\t${cap}"
     done
@@ -356,12 +356,12 @@ usage() {
 	echo "   -f    - Follow the kernel trace buffer."
 	echo "   -g/-G - generate cap mask for the given list of capabilities."
 	echo "           (input as string names). -g applies to features for user"
-	echo "           contexts, -G applies to capabilites for kernel contexts."
+	echo "           contexts, -G applies to capabilities for kernel contexts."
 	echo "   -h    - Show this help screen."
 	echo "   -L    - List status (enabled/disabled) of all HFI1 trace events."
 	echo "   -m    - Enable/disable tracing events using bitmask."
 	echo "   -s    - Show the current content of the kernel trace buffer."
-	echo "   -S    - List all capabilites supported by the driver."
+	echo "   -S    - List all capabilities supported by the driver."
 	echo "   -C    - Show currently enabled driver features."
 	echo "   -r/-R - Disable a feature (or a list of capabilities) from the list"
 	echo "           of currently enabled ones. -r applies to features for"

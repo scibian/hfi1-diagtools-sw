@@ -1,19 +1,12 @@
 #!/usr/bin/make -f
-#
 
-export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export CFLAGS=
 
 %:
-	dh $@ --parallel --with autoreconf
+	dh $@ --parallel
 
-.PHONY: override_dh_installdocs
-override_dh_installdocs:
-	dh_installdocs --link-doc=hfi1-diagtools-sw
+override_dh_auto_build:
+	$(MAKE)
 
-.PHONY: override_dh_install
-override_dh_install:
-	dh_install
-	chmod a-x `find debian/hfi1-diagtools-sw/usr/share/hfi-diagtools-sw/test_packets/ -type f -exec grep -L bin/sh {} \;`
-
-
-
+override_dh_auto_install:
+	$(MAKE) DESTDIR=$$(pwd)/debian/tmp prefix=/usr install install-noship

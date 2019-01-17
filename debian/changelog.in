@@ -1,0 +1,12 @@
+hfi1-diagtools-sw (0.8-91) UNRELEASED; urgency=medium
+
+  * Add Ubuntu support
+  * Import hfi1-diagtools-sw-0.8-91 from OPA 10.7.0.0.53
+
+ -- Tymoteusz Kielan <tymoteusz.kielan@intel.com>  Fri, 20 Oct 2017 09:46:27 +0200
+
+hfi1-diagtools-sw (0.7) UNRELEASED; urgency=medium
+
+  * Import hfi1-diagtools-sw-0.8-13 from OPA 10.1.0.0.145
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Mon, 14 Mar 2016 12:26:35 -0500

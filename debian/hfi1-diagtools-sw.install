@@ -1,0 +1,11 @@
+/usr/bin/hfi1_pkt_test
+/usr/bin/hfi1_pkt_send
+/usr/bin/hfi1_control
+/usr/bin/hfi1stats
+/usr/share/man/man8/hfi1_pkt_test.8.gz
+/usr/share/man/man8/hfi1_control.8.gz
+/usr/share/man/man8/hfi1_pkt_send.8.gz
+/usr/share/man/man8/hfi1stats.8.gz
+/usr/share/man/man5/hfi_pkt_files.5.gz
+/usr/share/man/man4/hfi1.4.gz
+/usr/share/hfi-diagtools-sw/test_packets
