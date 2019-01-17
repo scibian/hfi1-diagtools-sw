@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-104-1ifs+deb8sci8+opa10.8u1) scibian8+opa10.8; urgency=medium
+
+  * update version.
+
+ -- M'hamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Thu, 17 Jan 2019 14:15:21 +0100
+
 hfi1-diagtools-sw (0.8-104-1ifs+deb8) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-104 from IFS RHEL75 10.8.0.0.204 upstream.
