@@ -72,7 +72,6 @@
 
 #include "opa_user.h"
 #include "opa_service.h"
-#include "ipserror.h"
 
 #include <linux/stddef.h>
 
@@ -94,6 +93,10 @@
 #endif
 
 #define OK 0
+#define NO_RESOURCE_AVAILABLE -1
+#define DEVICE_INIT_FAILED -2
+#define UNKNOWN_DEVICE -3
+
 
 
 /*
@@ -393,7 +396,7 @@ send_prefab_frame(struct fpkt *wp)
                 stack_ctrl.spio_cur_slot, 
                 stack_ctrl.spio_avail_send_credits,
                 credits_needed);
-        return IPS_RC_NO_RESOURCE_AVAILABLE;
+        return NO_RESOURCE_AVAILABLE;
     }
 
     stack_ctrl.spio_fill_send_credits += num_credits;
@@ -445,7 +448,7 @@ send_prefab_frame(struct fpkt *wp)
     stack_ctrl.spio_cur_slot =
         (cur_slot + num_credits) % stack_ctrl.spio_total_send_credits;
 
-    return IPS_RC_OK;
+    return OK;
 }
 
 
@@ -482,7 +485,7 @@ static int hfi_pkt_open(int unit, uint32_t * my_lid, uint16_t * my_ctxt)
         if(stack_ctrl.file_desc == -1) {
 		_HFI_ERROR("hfi_context_open failed. Device = %d, Error = %s\n",
                         unit, strerror(errno));
-		return IPS_RC_UNKNOWN_DEVICE;
+		return UNKNOWN_DEVICE;
 	}
 
 	memset(&hfi_drv_user_info, 0, sizeof(struct hfi1_user_info_dep));
@@ -497,7 +500,7 @@ static int hfi_pkt_open(int unit, uint32_t * my_lid, uint16_t * my_ctxt)
 
 	hfi_ctrl = hfi_userinit(stack_ctrl.file_desc, &hfi_drv_user_info);
 	if (hfi_ctrl == NULL)
-		return IPS_RC_DEVICE_INIT_FAILED;
+		return DEVICE_INIT_FAILED;
        
 	/* Setting P_KEY to default value */
 	cmd.type = PSMI_HFI_CMD_SET_PKEY;
@@ -580,7 +583,7 @@ static int hfi_pkt_open(int unit, uint32_t * my_lid, uint16_t * my_ctxt)
 
         //hfi_check_unit_status not currently implemented in PSM
 	//(void)hfi_check_unit_status(hfi_ctrl);	// warn up front if problems
-	return IPS_RC_OK;
+	return OK;
 }
 
 
