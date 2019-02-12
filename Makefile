@@ -23,8 +23,8 @@ RELEASE := $(shell if [ -e .git ] ; then git describe --tags --long --match='v*'
 # Concatenated version and release
 VERSION_RELEASE := $(VERSION)-$(RELEASE)
 
-GIT_VERSION := "0.8-101"
-GIT_DATE := "2017-11-16 16:58:28 -0500"
+GIT_VERSION := "0.8-104"
+GIT_DATE := "2018-02-22 11:15:35 -0800"
 
 # so can do, e.g. 'make SUBDIRS=util' to build just one dir
 ifneq (,${BUILDING_32BIT})
