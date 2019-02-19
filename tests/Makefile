@@ -37,6 +37,11 @@ PKTFILES=$(shell find ../tests/test_packets -maxdepth 1 -type f)
 
 all: $(TARGETS)
 
+clean:
+	rm -rf $(TARGETS)
+	rm -rf $(DEPFILES)
+	rm -rf $(DEPFILES:.d=.o)
+
 install: all
 	test -z ${DESTDIR}/usr/bin || mkdir -p ${DESTDIR}/usr/bin
 	install -m 0755 -D $(test_build_dir)/hfi1_pkt_send ${DESTDIR}/usr/bin/hfi1_pkt_send

@@ -1,19 +1,16 @@
 Source: hfi1-diagtools-sw
-Maintainer: Scibian Project <packaging@scibian.org>
-Section: utils
+Maintainer: Brian T. Smith <bsmith@systemfabricworks.com>
+Section: non-free/utils
 Priority: extra
 Standards-Version: 3.9.8
 Homepage: http://www.intel.com
-Vcs-Git: https://github.com/scibian/hfi1-diagtools-sw.git
-Vcs-Browser: https://github.com/scibian/hfi1-diagtools-sw
 Build-Depends: debhelper (>= 10),
                libpsm2-dev,
 
 Package: hfi1-diagtools-sw
-Architecture: amd64
+Architecture: linux-any
 Depends: pciutils,
          ${misc:Depends},
          ${shlibs:Depends},
 Description: Intel HFI1 User Tools
  User utilities for the Intel Host Fabric Interface
-

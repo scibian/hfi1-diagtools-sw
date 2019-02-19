@@ -1,0 +1,23 @@
+Description: Fallback to use board_id if find_device_name fails
+ The board_id is used to get the full device name if the pci.ids
+ cannot be located. However, pci.ids may not contain information for
+ hfi1. This patch falls back to use board_id if find_device_name fails.
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Forwarded: no
+Last-Update: <2018-07-20>
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/scripts-enduser/hfi1_control
++++ b/scripts-enduser/hfi1_control
+@@ -483,7 +483,10 @@
+ 	if [ -r ${pci_ids} ]; then
+ 	    # if pci.ids file was found, use it to build device name
+ 	    find_device_name $pcipath
+-	else
++	fi
++
++	# find_device_name not called or it failed
++	if [ -z "$full_device_name" -o "$full_device_name" = "Intel Corporation " ] ; then
+ 	    # in case of missing pci.ids, fall back to board_id
+ 	    read full_device_name < ${class}/board_id
+ 	fi

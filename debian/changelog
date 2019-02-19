@@ -1,35 +1,34 @@
-hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u3) scibian9+opa10.6; urgency=medium
+hfi1-diagtools-sw (0.8-113-1ifs+deb9) stretch; urgency=medium
 
-  * debian: Only build amd64
+   * Import hfi1-diagtools-sw 0.8-113 from IFS RHEL76 10.9.0.1.5 upstream.
 
- -- Thomas HAMEL <thomas-externe.hamel@edf.fr>  Mon, 30 Apr 2018 17:12:08 +0200
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Tue, 19 Feb 2019 16:15:47 -0600
 
-hfi1-diagtools-sw (0.8-84-2ifs+deb9sci9+opa10.6u2) scibian9+opa10.6; urgency=medium
+hfi1-diagtools-sw (0.8-104-1ifs+deb9) stretch; urgency=medium
 
-  * Revert to upstream "-" in the version. Upgrade from scibian8 will
-    need an administrator action.
+   * Import hfi1-diagtools-sw 0.8-104 from IFS RHEL75 10.8.0.0.204 upstream.
 
- -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Mon, 30 Apr 2018 15:49:36 +0200
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Thu, 25 Oct 2018 16:06:07 -0500
 
-hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9+opa10.6u1) scibian9+opa10.6; urgency=medium
+hfi1-diagtools-sw (0.8-101-1ifs+deb9) stretch; urgency=medium
 
-  * Stricter aspect specification compliance for version
+   * Import hfi1-diagtools-sw 0.8-101 from IFS RHEL74 10.7.0.0.145 upstream.
 
- -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Wed, 18 Apr 2018 14:38:26 +0200
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 29 Jun 2018 15:57:31 -0500
 
-hfi1-diagtools-sw (0.8.84-2ifs+deb9sci9u1) scibian9; urgency=medium
+hfi1-diagtools-sw (0.8-84-3ifs+deb9) stretch; urgency=medium
 
-  * Scibian9 release.
+   * Inform user that hfi1 module conflicts with hfi1_eprom.
 
- -- Thomas Hamel <thomas-externe.hamel@edf.fr>  Tue, 17 Apr 2018 14:44:13 +0200
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 16 May 2018 14:46:13 -0500
 
-hfi1-diagtools-sw (0.8-84-2ifs+deb9) unstable; urgency=medium
+hfi1-diagtools-sw (0.8-84-2ifs+deb9) stretch; urgency=medium
 
    * Branch for stretch.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 02 Feb 2018 11:26:30 -0600
 
-hfi1-diagtools-sw (0.8-84-1ifs) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8-84-1ifs) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-84 from IFS RHEL73 10.6.0.0.134 upstream.
    * Use git packaging and pristine-tar.
@@ -37,7 +36,7 @@ hfi1-diagtools-sw (0.8-84-1ifs) UNRELEASED; urgency=medium
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Tue, 17 Oct 2017 23:51:11 -0500
 
-hfi1-diagtools-sw (0.8-68-1ifs) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8-68-1ifs) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-68 from IFS 10.5.0.0.153 upstream.
    * Correct hfi1_control's detection of pci.ids.
@@ -45,51 +44,51 @@ hfi1-diagtools-sw (0.8-68-1ifs) UNRELEASED; urgency=medium
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 29 Sep 2017 13:19:51 -0500
 
-hfi1-diagtools-sw (0.8-53-1ifs) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8-53-1ifs) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-53 from IFS 10.4.2.0.7 upstream.
    * Fixed 222: hfi_control not reporting OPA version.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 19 Jul 2017 13:25:27 -0500
 
-hfi1-diagtools-sw (0.8-39-1ifs) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8-39-1ifs) jessie; urgency=medium
 
    * Convert to quilt format. Corrected version.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Thu, 08 Jun 2017 12:51:11 -0500
 
-hfi1-diagtools-sw (0.8.39) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8.39) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw-0.8.39 from IFS 10.3.1.0.20.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Tue, 07 Feb 2017 14:32:35 -0600
 
-hfi1-diagtools-sw (0.8.37.1) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8.37.1) jessie; urgency=medium
 
    * Updated required version of libpsm2 to 10.2.63.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Wed, 25 Jan 2017 16:20:35 -0600
 
-hfi1-diagtools-sw (0.8.37) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8.37) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw-0.8-37 from IFS 10.3.0.0.81 upstream
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 16 Dec 2016 19:14:35 -0600
 
-hfi1-diagtools-sw (0.8.27) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8.27) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw-0.8-27 from IFS 10.2.0.0.158 upstream
    * hfi1-utils is no longer included as a package.
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 30 Sep 2016 17:21:35 -0500
 
-hfi1-diagtools-sw (0.8) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.8) jessie; urgency=medium
 
   * Import hfi1-diagtools-sw-0.8-13 from IFS 10.1.0.0.145 upstream
 
  -- Brian T. Smith <bsmith@systemfabricworks.com>  Fri, 10 Jun 2016 16:37:35 -0500
 
-hfi1-diagtools-sw (0.7) UNRELEASED; urgency=medium
+hfi1-diagtools-sw (0.7) jessie; urgency=medium
 
   * Import hfi1-diagtools-sw-0.8-13 from IFS 10.1.0.0.145 upstream
 
