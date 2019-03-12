@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 10),
                libpsm2-dev,
 
 Package: hfi1-diagtools-sw
-Architecture: linux-any
+Architecture: amd64
 Depends: pciutils,
          ${misc:Depends},
          ${shlibs:Depends},
