@@ -1,0 +1,100 @@
+#!/bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# pkt_cntr_suite -- Run all pkt_cntr_test scripts and present summarry
+# These tests operate by sending various packets via loopback and examining
+# the results via ipathstats.
+# Replaces the original monolithic pkt_cntr_test
+
+ifc=$1
+
+# Locate self, and by implication other scripts and files
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+total_errs=0
+
+for test_script in basic lenfmt lli
+do
+  echo -e "\n--- $test_script counter tests"
+  $script_dir/${test_script}_pkt_cntr_test $ifc | tee /tmp/pkt_cntr_res_$$
+  if [ $? ]
+  then
+    # Failure of some sort, show output
+    errcnt=`tail -1 /tmp/pkt_cntr_res_$$ | cut -s -d ' ' -f1`
+    if [ "$errcnt" = "" ]
+    then
+      echo no error line present
+      errcnt=1
+    fi
+    total_errs=`expr $errcnt + $total_errs`
+  fi
+done
+rm -f /tmp/pkt_cntr_res_$$
+
+echo "=========================================================="
+echo $total_errs total errors
+if [ $total_errs -ne 0 ]
+then
+  echo TEST FAILED
+  exit 1
+fi
+
+exit 0
+

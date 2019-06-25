@@ -1,0 +1,18 @@
+Description: Remove bashisms from Makefile
+ On Debian, Makefile should assume that the shell is sh, not bash.
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Forwarded: no
+Last-Update: <2018-07-10>
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/Makefile
++++ b/Makefile
+@@ -35,7 +35,7 @@
+ NOSHIP_SUBDIRS := hfidiags itp doc
+ ALL_DISTROLIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/rhel67.*\" -prune -o
+ RHEL_67LIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/default.*\" -prune -o
+-EXCLUDE_LIB := $(shell if [[ ${DISTRO_NAME} == "rhel67" ]]; then echo ${RHEL_67LIB}; elif [[ ${DISTRO_NAME} == "rhel" ||  ${DISTRO_NAME} == "sles" ]]; then echo ${ALL_DISTROLIB}; fi)
++EXCLUDE_LIB := $(shell if [ ${DISTRO_NAME} = "rhel67" ]; then echo ${RHEL_67LIB}; elif [ ${DISTRO_NAME} = "rhel" -o  ${DISTRO_NAME} = "sles" ]; then echo ${ALL_DISTROLIB}; fi)
+ 
+ # set reasonable defaults
+ export TOP := $(shell pwd)

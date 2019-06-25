@@ -1,0 +1,149 @@
+.TH hfi1_pkt_test 8
+'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation.
+.SH NAME
+hfi1_pkt_test \- Diagnostic test for link and bandwidth for HFIs
+.SH SYNOPSIS
+.B hfi1_pkt_test
+[-h]
+.br
+.B hfi1_pkt_test
+-r [-f] [-u] [-d level] [-D device]
+.br
+.B hfi1_pkt_test
+-L LID -P Port [-c count] [-s size] [-p] [-e] [-d level] [-D device]
+.br
+.B hfi1_pkt_test
+-B
+.SH DESCRIPTION
+.P
+.B hfi1_pkt_test
+is a simple program that can be used to test the InfiniBand link and bandwidth
+between two HFIs, or, with an InfiniBand loopback connector, with a single HFI.
+It runs in either ping-pong mode (send a packet, wait for a reply, repeat),
+stream mode (send packets as quickly as possible, receive responses as they
+come back), or local buffer write mode (write to the HFI send buffer, but do
+not send any packets).
+.P
+On completion, the sending side prints statistics on the packet bandwidth,
+showing both the payload bandwidth, and the total bandwidth (including
+InfiniBand and HFI headers).   The bandwidth 
+is displayed in MB(10^6)/second, not MiB (2^20)/second.
+Both payload and total bandwidth (includes InfiniBand and HFI headers)
+are displayed.
+.P
+For stream mode (the default), the bandwidth is calculated using the
+time from first packet sent, until last response arrives (the sender will pause
+occasionally if it gets too many packets ahead of the receiver).
+.P
+For pingpong
+mode, the bandwidth is calculated by averaging the time from sending
+the packet until it's response comes back, across all packets sent,
+and dividing by 2 (that is, the unidirectional bandwidth).
+For both cases, the first few packets are not included in the calculation,
+they are used to get into a steady state.   The processor cycle counter
+is used, in order to get high precision time stamps.
+.P
+For buffer write mode, the bandwidth is calculated by measuring the time it
+takes to write as many bytes as possible to the HFI’s PIO send buffer.  The
+number of bytes written is bounded by the size of the PIO send buffer: if the
+send buffer is configured for N bytes, N-64 bytes are written.  This mode
+effectively measures PCI Express write performance to the HFI independently
+from the network.
+.P
+There are three modes of operation, with some options only allowed in some modes.
+Either the
+.BR -B ,
+.B -r
+or the
+.B -L
+and 
+.B -P
+options must be given, but not mixed.   The count, size, and mode
+options are valid only on the sending side.  The full reply and
+urgent options are valid only on the receiving side, but cannot
+be used together.   For network bandwidth
+performance testing, both a sender and a responder are required.
+.TP 12
+.BI -h
+Display a short multi-line help message.
+.TP 12
+.BI -d \ number
+Set the debug level for the driver. The value is a bitmap of debug
+levels. Note that setting high debug levels
+can render the system almost unusable due to high verbosity.
+.TP 12
+.BI -U \ unit
+Specify an alternate device unit to use. For example, to use
+.IR /dev/hfi1 , specify `1'. The default is 0.
+.TP 12
+.BI -r 
+Runs in responder mode.   Waits forever for packets,
+then sends them back to the LID and port that sent them.
+It never exits, and so must be terminated with the
+.IR kill (1)
+command, or a keyboard interrupt.
+.TP 12
+.BI -B 
+Runs a buffer write performance test, to check how fast data can be written into the HFI buffers.
+No packets are sent on the fabric.   No responder process is required.
+.TP 12
+.BI -f 
+The responder will respond with the full packet.   In streaming mode,
+this results in simultaneous bidirectional traffic.   The default
+is that the responder replies with just an ack packet (no payload).
+.TP 12
+.BI -u
+The responder will wait for the receipt of packets with the urgent bit
+set.  The default is to wait for the receipt of any packet.  Using
+this option also tells the receiver to not to respond to any packet.
+This option is mainly useful for unit testing of urgent receive.
+.TP 12
+.BI -L \ LID
+Set the destination HFI LID.  This would normally be the
+LID printed by the responder.
+.TP 12
+.BI -C \ context
+Set the destination HFI context.  This would normally be the
+context printed by the responder.
+.TP 12
+.BI -c \ number
+Specifies how many packets are to be sent.  Default value is 100000.
+.TP 12
+.BI -s \ size
+Sets the packet size to be used.   This must be a value between 0 and the
+maximum MTU supported by the HFI (10240).  The default is 2048.  It must be a
+multiple of 4 (if not, it is rounded down).
+.TP 12
+.BI -p
+Run in pingpong mode, sending one packet, waiting for the response,
+and repeating.   The default is to run in stream mode.   For this option,
+the bandwidth reported is about 1/2 of the unidirectional bandwidth
+if the
+.B -f
+option is used on the responder.  In the default mode it approaches the ideal
+unidirectional pingpong bandwidth as packet size increases.
+.TP 12
+.BI -e
+Exit sending loop if we do not responses, rather than continuing to send at
+a reduced rate until acks are received (sending at a reduced rate is done
+to handle the case where the receiver somehow loses packets, to attempt to
+continue when congestion is causing packet loss).
+.SH SEE ALSO
+.BR hfi1 (4), hfi1_pkt_send (8)
+.br
+Additional documentation is available on the Intel website:
+.br
+http://www.intel.com/infiniband
+.SH COPYRIGHT
+Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+.br
+Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+.br
+Copyright (C) 2006 PathScale, Inc.  All rights reserved.
+.SH AUTHOR
+Intel Corporation.

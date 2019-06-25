@@ -1,0 +1,834 @@
+# Copyright (C) 2006 QLogic Corporation, All rights reserved.
+# Copyright (c) 2005, 2006 PathScale, Inc.  All rights reserved.
+# Unpublished -- rights reserved under the copyright laws of the United States.
+# USE OF A COPYRIGHT NOTICE DOES NOT IMPLY PUBLICATION OR DISCLOSURE.
+# THIS SOFTWARE CONTAINS CONFIDENTIAL INFORMATION AND TRADE SECRETS OF
+# PATHSCALE, INC.  USE, DISCLOSURE, OR REPRODUCTION IS PROHIBITED
+# WITHOUT THE PRIOR EXPRESS WRITTEN PERMISSION OF PATHSCALE, INC. 
+
+1.0 Introduction
+================
+
+1.1 Scope
+---------
+
+This software provides a framework that is used to test and verify the
+Infinipath Architecture Family functionality in various stages of development.
+Due to time and manpower restrictions, we are only considering the following
+stages: bringup tests, verification tests, manufacturing tests and runtime
+tests.  Due to the aggressive nature of the schedule, not all of these stages
+will be fully completed, but enough functionality is provided to test and
+verify the ASIC.  The tests that provide the best bang-for-the-buck
+are provided.
+
+Most of the effort has been directed at the bring-up and verification tests.
+Additionally manufacturing tests are provided, but it is currently just a mode
+and all Power Up Self Test (POST) routines are run.  Runtime tests have had
+the least amount of work.  Currently, the only non-intrusive runtime tests
+available are to monitor the state of the chip.
+
+The diagnostics began as tests directed towards the Infinipath FPGA in the
+Sawmill and Twister boards.  Additional tests were added and now the main
+focus is towards the Waldo ASIC.
+
+
+
+2.0 Types of Tests
+==================
+
+2.1 Bringup Tests
+-----------------
+
+Bringup tests are composed of basic routines that are to be used in the lab
+when the ASICs and PCBs first arrive.  The main goal here is to get the board
+and ASIC into a basic state of functionality so that verification can begin.
+These tests are basically reads, writes, interrupts and link configuration.
+
+2.2 Verification Tests
+----------------------
+
+Verification tests are used to functionally verify the operation of the ASIC.
+The goal here is to test to the limits of the design by stressing the
+different blocks and verifying corner cases.  These are mainly packet and
+memory related tests and in some cases will require the use of external test
+equipment.
+
+2.3 POST and Runtime Tests
+--------------------------
+
+POST is run every time the system is powered on.  It is composed of a small
+set of tests that run quickly and perform a sanity check of the system.  If
+POST passes we can say with a decent probability that live traffic will also
+pass correctly through the system.
+
+The runtime tests are a set of non-invasive tests used while the system is
+running.  They are to perform background testing to try and detect failures
+that might not be caught in normal operation.  These tests are written
+carefully to not interfere with normal operation.  They allow fault diagnosis
+on live systems.
+
+2.4 Manufacturing Tests
+-----------------------
+
+Manufacturing tests are used to verify that the Infinipath ASICs and PCBs were
+built according to design specifications.  All accessible PCB-to-ASIC
+interfaces are verified by pushing data across the boundaries, hoping to catch
+shorts (solder splashes etc.) or opens (cold solder joints etc.) on the PCB.
+Currently, the same tests run in POST are run as manufacturing tests as the
+runtime is still short (in the order of 1 minute).  If additional, more time
+consuming tests are added to POST, then we have the option of leaving them out
+of the Manufacturing Test Suite.
+
+
+
+3.0 Software Framework
+======================
+
+The diagnostics exist completely in user space, making driver I/O
+calls to access hardware. The diagnostic software will not use the IPS
+layer for packet tests, instead using the driver diags path to send
+and receive data.  Diagnostics do not use up a port.  Diagnostics have
+full access to the chip (i.e. do not adhere to any of the virtualization
+features available).  This allows the operator full control of the chip.
+Care should be taken when running on a live system as you can stomp on
+any port's registers.
+
+3.1 Diagnostic Test Engine
+--------------------------
+
+All tests run under a test engine.  The test engine provides several features
+to make testing easier.  The core of the engine is one function that iterates
+over data structures that describe tests, and executes the tests.
+
+There are two types of entities that describe tests -- test groups and test
+items.  A test item is an individual test used to perform a task.  A test
+group is a collection of test used to perform a broader function.
+Additionally, a test item can be used to call a test group.  This allows
+hierarchical testing/menus.
+
+The engine provides "test modes" to allow control testing.  The initial modes
+supported are: POST, Manufacturing and Interactive.  Also, each group and item
+have attributes specifying which mode(s) the group or item can be run in. In
+POST mode, a small subset of tests is run.
+
+In Interactive Mode, the operator is presented with a CLI with access to all
+tests available.  The CLI displays a hierarchical menu system based on the
+test groups.  The operator is allowed to execute any test necessary, in any
+order desired.  It should be noted that some tests might require certain other
+"setup" tests be run before they can be executed.  These tests will fail if
+not run in the correct order.  For example, if a test tries to pass a packet
+through the chip, the link must be run before for it to succeed.  Interactive
+mode also provides additional features for testing.  These features include:
+run all tests in current group, loop on first test failed, stop on first test
+failed, loop the current group several times, loop a particular test several
+times.
+
+3.2 Running Diags
+-----------------
+
+1) To use the diags, you must have a diags enabled driver.
+   This is done by installing the Infinipath no-ship RPMs before
+   installing the Infinipath ship RPMs.  If you install the no-ship
+   RPMs afterwards, you will need to rebuild the driver.
+2) You must add "idle=poll" to the Linux boot line.  Without this
+   the Chipset send broadcast packets to Waldo, and due to a Waldo bug, 
+   memory tests can fail.  What happens is that when any access to the chip 
+   is executed while a memory read is in progress, the read can get 
+   corrupted.  It is a little subtle as the diags performs 64 bit reads.  The 
+   NorthBridge breaks these into 2 32 bits reads, and one of the 2 responses 
+   gets corrupted, so half the data is good, and half bad.  This method works 
+   great with LinuxBIOS.  With AMI BIOS, though it does not work as well.  
+   With AMI BIOS, not all broadcasts are stopped so errors still occur.  There
+   is a workaround in diags to ignore 1 error and retry.  I have not seen
+   any failures in the lab with this workaround, but it is theoretically
+   possible for the next read to fail also (depending on the frequency of
+   broadcast packets).
+3) The diags executable is called ipath_diags
+4) use 'ipath_diags -h' to get a help on its usage.  Output is: 
+
+   InfiniPath Diagnostics Version 1.29 Usage: ipath_diags <mode>
+      where optional <mode> is: '-i' for Interactive (default).
+                                '-p' for POST.
+                                '-v' for verbose output.
+                                '-m' for Manufacturing Tests.
+                                '-h' for this Help message.
+                                '-l <file>' Log keystrokes to specified file.
+                                '-u <unit>' Chip Unit to test.
+                                            Default is first in system.
+
+5) Use '-p' to run all of the POST without any user interaction.
+   A PASS/FAIL message will be displayed for every test run.  See the appendix
+   for sample runs.  Every failed test will have a description of the
+   failure.  Additionally, if the '-v' flag is specified, more verbose
+   message can be shown.  Currently, the verbose messages are only for
+   memory test failures when there are multiple failures for a particular
+   memory macro.  Without the '-v' flag, only the last memory failure is
+   displayed.
+6) Run Manufacturing Test by running 'ipath_diags -m'.  Manufacturing tests
+   currently run all the POST tests but with limited output.  This can change
+   in the future if more time consuming tests are added to POST.  In that case,
+   the time consuming tests might be ignored in manufacturing tests.  A '.' is
+   displayed for every test passed, and an 'X' is displayed for every test
+   failed.  Unlike POST, the failures are only displayed at the end of
+   the test run.  This makes it easier to parse output on the production 
+   floor.  Additionally, the '-v' flag in manufacturing tests causes a
+   PASS/FAIL banner to be displayed at the end of testing.
+7) Both POST and manufacturing tests need to have the link up prior to 
+   running them.  In interactive mode, you do not need to have the link up
+   unless you plan on passing packets.  In that case, a test group to bring
+   the link up is available in diags.  You will need to ensure that the
+   SMA (ib_mad module) is not running as you can have conflicts with
+   diags when trying to bring the link up.
+8) You can debug with diags but running in interactive mode with no 
+   args: 'ipath_diags' or with the '-i' flag.  See below for more information
+   about interactive mode.
+9) You can store all keystrokes for a particular interactive session
+   by starting diags with the '-l <file>' option.  All keystrokes will be
+   saved to the specified file.  You can not replay a session by doing:
+   "ipath_diags < file".  You can also manually modify the file with any
+   test editor to change the behavior of the test run.
+10) If the system you are testing has multiple chips in it, you will
+   need to use the '-u <unit>' option to test the other chips.  By default
+   the first chip found will be tested.
+
+3.3 Interactive Mode:
+----------------------
+
+This is the default operating mode for the diags.  It is a menu driven
+interface that allows the operator to execute all available tests.  Every test
+that can be run in the modes above can be run here.  Addition tests are
+available to aid in the bringup process.  To enter this mode, do either of the
+following:
+
+ipath_diags
+ipath_diags -i
+
+The following section will focus on things you can do in the interactive mode
+as the other modes do only 1 set of tests.
+
+3.3.1 Interactive Menu System
+-----------------------------
+
+When the Infinipath Diags are started in interactive mode, a menu system is
+entered.  The menu is broken into 2 main parts.  The first part is numbered,
+and the second is lettered.  The lettered section contains a list of global
+commands that exist on every single menu.  The numbered selection contains a
+test or a group to be executed.
+
+A test is usually has a trailing "Test" sting and a group of tests usually has
+the "Group" string trailing it.  Via this method, a hierarchical system is
+entered.  At any time, you can see how deep you are in the hierarchy by
+looking at the prompt.  The prompt is "diagX>" where "X" is the level number.
+
+3.3.2 Global Commands
+---------------------
+
+h) Display the test menu for the current level
+o) (this is 'oh' not 'zero') Display all of the counters in the 
+   Infinipath/Waldo system
+#) Echo the line (used in scripting)
+r) you are prompted to enter the base address, followed by the number of 
+   bytes to display.  You stay in the read mode until you press 'q' or '.'.
+   Enter read SPC register mode.  Enter a series of register offsets (in 
+   bytes) and number of bytes to read.  The specified number of bytes 
+   starting at the offset are displayed in Hex qwords.  The offset must be 
+   in multiples of 8 bytes (1 qword).  Use either a "." or a  "q" to exit 
+   back to the previous menu level.
+a) A quick way to run all the tests at the current level.  If the current 
+   level contains a test group, all of its tests are run also.  Running 
+   "a" from the root menu, causes all tests to be run inclusive of 
+   interactive tests.  This is probably not what you want to do.  Certain 
+   "leaf" groups are prime candidates for "a", like the "SPC Sanity Test 
+   Group" in the root menu.
+s) Used to store the last interactive read value.  This is mainly for use 
+   in scripts and the "C" command described below.
+C) Compare the value of the last stored read with the current read value.
+   In scripts, you can perform a read and then a store.  The last qword is 
+   stored away.  Then any subsequent read can be checked against the stored 
+   one with a "C" command.
+c) Change the execution modifier.  By default, the interactive diags simply 
+   return to the menu after executing a test.  This option changes that to 
+   allow the following: Break on Fail, Break on Pass, Exit on Fail, Exit 
+   on Pass, Loop on Fail, Loop on Pass.  When executing the "a" command, you 
+   can have the program return to the test menu after the first failure 
+   (Break on Fail) or the first test that passes (Break on Pass).  Likewise, 
+   you can have the diags exit on fail/pass (Exit on Fail, Exit on Pass).  
+   Loop on fail allow you to keep repeating a failing test.  When used with 
+   the "a" command, all tests are run like normal, and the first failing test 
+   keeps repeating until it passes.  The converse is true of the loop on pass 
+   mode.
+S) This command displays the important error registers and displays their 
+   contents in more human readable form.  The registers displayed are the 
+   Error Status Register, Hardware Error Status Register, Interrupt Status 
+   Register, IBC Status Register, External Status Register, Send Buffer 
+   Error0 Register and the Send Buffer Error1 Register.
+w) This command is the converse of the "r" command.  Here you enter the SPC 
+   register write mode where to select the register offset (in bytes just 
+   like the "r" command), and the value to write to the specified register 
+   offset.  The size of the write is limited to QWords. You are prompted
+   to enter the base address, followed by the QWord (64 bits) for that 
+   address.  You stay in write mode until 'q' or '.'.
+q) Allows you to exit the current menu level and return to the previous
+   higher menu level.  A "q" at the root menu will exit the diags.
+   - From the top level menu, all the main debug routines are in the
+     "8) Utility Routines Group" menu.  Menu items 1-6 allow you to
+     run POST tests individually.
+   - In the utilities group, item 9 and 10 help clear interrupts, errors
+     and counter.  The global command 'a' will run all test in that
+     menu.  That is, Enter '9' followed by 'a' to clear counters.
+     'q' pops you back up a level.
+   - The other Utility test you might find useful is:
+     "3) Rambus Utilities Group"
+     - With the Rambus group, you can enable the link, 1-18 work 
+       reliably using 'a' to run all tests.  Walking the state machine does 
+       not work when connected to a switch as the 2 sides need to be lock 
+       step.  So, 19-22 can fail and you will need to manually run
+       20 and/or 22 repeatedly to get the link up while walking the state
+       machine on the other side of the link.  Use the 'S' command to see
+       how the link is getting along.
+
+3.3.3 Examples of Interactive Diags
+-----------------------------------
+
+Basic Sanity Tests
+------------------
+
+From the root menu, select "SPC Sanity Test Group".  Use the "a" option to run
+all the basic tests.  This lets us know if the system has a base level of
+functionality.  We verify the SPC revision register value.  Then we run a
+battery of tests on the Scratch register.  We first write and verify the write
+of 0xAAAAAAAAAAAAAAAA.  Next we write and verify the write of
+0x5555555555555555.  This tells us if each bit can be toggled.  Next, we walk
+a 1 across the 64 bits to verify that each bit can be assessed individually.
+Finally we return the value to 0x0 and verify it.  After testing the scratch
+register, the basic stability test if performed on the HTC and SPC blocks for
+about 3 seconds each.  
+
+Register Tests
+--------------
+
+We can run specific tests on the Scratch Register by selecting the "Scratch
+Register Utilities Group" from the main Utility menu.  By changing the
+execution mode to loop on pass and loop on fail, we can repeatedly read or
+write a particular pattern to the Scratch register.
+
+By using the "SPC Related Utilities Group", we have a way of polling the
+Vendor ID, Scratch or any register even faster than enabling the Loop
+pon Pass/Fail runtime option.
+
+Accessing the HTC Configuration Space
+-------------------------------------
+
+From the root menu, select "LowLevel HTC Access Group".  From here you can
+read or write any HTC register.  Read and write sizes are limited to 1 byte, 1
+word (2 bytes) and 1 dword (4 bytes).
+
+Testing the HTC Space Access Stability
+--------------------------------------
+
+From the root menu, select "Utility Routines Group".  From here, select the
+"HTC: Fast Poll DID/VID Register" test.  You will be prompted for the delay
+between reads in micro-seconds (as fast as possible is the default), and if we
+want output displayed (the default is yes).  This test causes reads of the
+Vendor ID/ Device ID register repeatedly.  Since this is a static read only
+register, it should never change.  If the value does change, it means that the
+HTC integrity is suspect.  Every time the value changes, a message is
+displayed on the screen with the old and new values and timing information.
+On a suspect bus, you might want to disable the "display output" option so
+that reads happen much fasted as displaying messages takes a long time.  Press
+"^c" to stop the looping.  At the end, a loop summary is displayed.  There
+might be a small delay in processing the "^c" and stopping, so please be
+patient.  Pressing "^c" a second time will cause the program to exit.
+
+Testing the SPC Space Access Stability
+--------------------------------------
+
+From the root menu, select "Utility Routines Group".  From here, select either
+the "SPC: Fast Poll Revision Register" test or the "SPC: Fast Poll Scratch
+Register" register test.  The first test accesses the read only Revision
+register in the same way as described in the HTC Access Stability test
+described above.
+
+Using the second method (the scratch register) should be used in conjunction
+with either the "SPC Set Scratch to 0xa5a5a5a5a5a5a5a5" test, the "SPC Set
+Scratch to 0xa5a5a5a5c3c3c3c3" test or the "w" global test and setting the
+scratch register to a known value.
+
+Testing the MDIO Interface (Twister and Bonanza Rev1 Only)
+----------------------------------------------------------
+
+From the root menu, select "Utility Routines Group".  Then select the "MDIO
+Utilities" group.  From here, you can use the "Set MDIO Clock", "MDIO Read"
+and "MDIO Write" tests.  The first test allows you to adjust the MDIO clock
+frequency to see how the interface responds to different bit rates.  The read
+and write commands are similar to the global "r" and "w" commands, but the
+external SERDES registers are accessed instead.
+
+Signal Integrity of the External SERDES (Twister and Bonanza Rev1 Only)
+-----------------------------------------------------------------------
+
+From the root menu, select "Utility Routines Group".  From here, select the
+"PMC8355 Utilities Group".  You can now put the SERDES into different test
+modes and using a scope, monitor the serial lines. More information is
+provided in the PMC datasheet.
+
+Signal Integrity of the Internal SERDES (Bonanza Only)
+-----------------------------------------------------------------------
+
+From the root menu, select "Utility Routines Group".  From here, select the
+"Rambus Utilities Group".  You can now put the SERDES into different test
+modes and using a scope, monitor the serial lines. More information is
+provided in the PMC datasheet.
+
+Monitoring the IB Link
+----------------------
+
+From the root menu, select "Utility Routines Group".  From here, select the
+"IBC Utilities" group.  The select "Monitor IB Link State" test.  You can
+display output if desired (on a link with a lot of activity, displaying output
+causes the interval between samples to be large).  Whenever, any of the
+"important" counters change value, the screen is updated.  To end, press "^c"
+(be patient as it might take a few seconds to process the "^c").  At the end,
+a summary is reported.
+
+Additionally, internal SERDES status information can be polled in a similar
+manner my executing the "Monitor SERDES FIFO Status" and "Monitor SERDES Link
+Skew Status" tests.  These are part of the Rambus Utilities.
+
+HT Bus Traffic
+--------------
+
+From the root menu, select "Utility Routines Group".  Under the group "HT
+Related Utilities", run one or more of the following tests "Checkerboard on HT
+b0 and b1", "Checkerboard on HT b0", "Checkerboard on HT b1" and "SSO on HT".
+These tests cause 1000 500byte packets with the specific payload to be
+transmitted. Basically, we are writing patterns to the PIO buffers so that
+with write-combining, we get close to the specific type of traffic desired
+(there will be NOP, Credit Releases and CRC info on the bus also).
+
+Parity and Interrupt Testing
+----------------------------
+
+Before entering the diags, add an external loopback connector.  Wait for the
+driver to bring the link up.  If the link does not come up, use the 
+"ipath_control -l 1", "ipath_control -L A" and "ipath_control -L a"
+commands to kick start the link state machine.
+
+Start the diags and from the root menu, select "Utility Routines Group".
+Select the "Parity Test Group".  You will need to run each test manually as
+the "a" will not work reliably as the generation/detection method is not
+deterministic.  This is as this path is not deterministic.  The tests which
+need Expected Packets to pass, will need an external program to generate the
+packet as diags can only generate eager packets for now.
+
+Also, some tests require external input.  For example, the Diags have no way
+to generate Expected TID packets, thus can not fully test Expected TID Parity
+errors.  Diags will set up the condition and then expect some external
+program to cause an Expected TID packet to be generated/recieved.
+
+Also, there is an RTL bug where Expected and Eager detect bits are transposed.
+Diags don't account for this as of now.
+
+Even though OS notification of interrupts is disabled, the interrupt status
+register is verified to make sure the correct interrupt are reported.  Testing
+the notification of interrupts can easily be testing when outside the diags,
+by connecting the external loopback connector and then disconnecting it.  If
+the driver noticed the insertion and removal, then the interrupt path is
+working fine.
+
+Counter Testing
+---------------
+
+Before entering the diags, add an external loopback connector.  Wait for the
+driver to bring the link up.  If the link does not come up, use the 
+"ipath_control -l 1", "ipath_control -L A" and "ipath_control -L a" commands to
+kick start the link state machine.
+
+Start the diags and from the root menu, select "Counters Test Group".  Select
+"a" to run all the tests.  These tests verify that each counter increments
+properly, and does not saturate (i.e. rolls over at 32 bits).
+
+Clearing Counters
+-----------------
+
+Sometimes it is nice to reset all the counters before running tests.  That
+way, it is easier to see what happened after a particular event.  To do
+this, select the "Clear Counters Group" from the Utilities main menu option.
+
+Clearing Errors
+---------------
+
+To clear all errors, hardware errors and interrupts, use the "Clear Errors 
+Group" from the Utilities main menu option.
+
+Memory Tests
+------------
+
+From the root menu, select "Memory Test Group".  Select "a" to run through an
+addressing test on all memories.  Conversely, you can run the first 3 tests
+(to disable the RX interrupts, interrupts and enter Freeze Mode, and then just
+run the test you specifically want.
+
+Detailed PIO Memory Checking
+----------------------------
+
+The normal memory tests test PIO buffer space also, but they test all
+the buffers in one shot.  In interactive mode, we have a way to test just
+the buffer we want to.  Suppose we have a particular PIO buffer that has
+an error, we can run tests just on that PIO buffer by selection the
+"PIO Test Group" from the main Utilities menu, and then selecting the
+Buffer that we want.
+
+
+
+4. Appendix
+===========
+
+4.1 Sample Run of POST
+----------------------
+
+InfiniPath Diagnostics Version $Revision: 1.29 $,  $Date: 05/08/06 15:29:09-07:00 $
+Test Time: Mon Aug 29 21:16:10 2005
+
+
+The LID has not been assigned on this card.  Using LID 1.
+Testing board Serial#1125250009.
+
+Running test 'Revision Reg Reset Val' ... PASSED.
+Running test 'Scratch Register Test' ... PASSED.
+Running test 'Validate HTC Access Stability' ... PASSED.
+Running test 'Validate SPC Access Stability' ... PASSED.
+Running test 'Control Reg Reset Val' ... PASSED.
+Running test 'PageAlign Reg Reset Val' ... PASSED.
+Running test 'PortCount Reg Reset Val' ... PASSED.
+Running test 'DebugPortSel Reg Reset Val' ... PASSED.
+Running test 'SendRegBase Reg Reset Val' ... PASSED.
+Running test 'UserRegBase Reg Reset Val' ... PASSED.
+Running test 'CntrRegBase Reg Reset Val' ... PASSED.
+Running test 'IntBlocked Reg Reset Val' ... PASSED.
+Running test 'HWDiagCtrl Reg Reset Val' ... PASSED.
+Running test 'EXTStatus Reg Reset Val' ... PASSED.
+Running test 'EXTCtrl Reg Reset Val' ... PASSED.
+Running test 'RcvBTHQP Reg Reset Val' ... PASSED.
+Running test 'RcvTIDBase Reg Reset Val' ... PASSED.
+Running test 'RcvTIDCnt Reg Reset Val' ... PASSED.
+Running test 'RcvEgrBase Reg Reset Val' ... PASSED.
+Running test 'RcvEgrCnt Reg Reset Val' ... PASSED.
+Running test 'RcvBufBase Reg Reset Val' ... PASSED.
+Running test 'RcvBufSize Reg Reset Val' ... PASSED.
+Running test 'RxIntMemBase Reg Reset Val' ... PASSED.
+Running test 'RxIntMemSize Reg Reset Val' ... PASSED.
+Running test 'SendPIOBufBase Reg Reset Val' ... PASSED.
+Running test 'SendPIOSize Reg Reset Val' ... PASSED.
+Running test 'SendPIOBufCnt Reg Reset Val' ... PASSED.
+Running test 'TxIntMemBase Reg Reset Val' ... PASSED.
+Running test 'TxIntMemSize Reg Reset Val' ... PASSED.
+Running test 'Revision Reg Read Only' ... PASSED.
+Running test 'PageAlign Reg Read Only' ... PASSED.
+Running test 'PortCount Reg Read Only' ... PASSED.
+Running test 'DebugPort Reg Read Only' ... PASSED.
+Running test 'SendRegBase Reg Read Only' ... PASSED.
+Running test 'UserRegBase Reg Read Only' ... PASSED.
+Running test 'CntrRegBase Reg Read Only' ... PASSED.
+Running test 'IntBlocked Reg Read Only' ... PASSED.
+Running test 'IntStatus Reg Read Only' ... PASSED.
+Running test 'ErrorStatus Reg Read Only' ... PASSED.
+Running test 'HWErrStatus Reg Read Only' ... PASSED.
+Running test 'EXTStatus Reg Read Only' ... PASSED.
+Running test 'RcvTIDBase Reg Read Only' ... PASSED.
+Running test 'RcvTIDCnt Reg Read Only' ... PASSED.
+Running test 'RcvEgrBase Reg Read Only' ... PASSED.
+Running test 'RcvEgrCnt Reg Read Only' ... PASSED.
+Running test 'RcvBufBase Reg Read Only' ... PASSED.
+Running test 'RcvBufSize Reg Read Only' ... PASSED.
+Running test 'RxIntMemBase Reg Read Only' ... PASSED.
+Running test 'RxIntMemSize Reg Read Only' ... PASSED.
+Running test 'SendPIOBufBase Reg Read Only' ... PASSED.
+Running test 'SendPIOSize Reg Read Only' ... PASSED.
+Running test 'SendPIOBufCnt Reg Read Only' ... PASSED.
+Running test 'TxIntMemBase Reg Read Only' ... PASSED.
+Running test 'TxIntMemSize Reg Read Only' ... PASSED.
+Running test 'SendBufferError0 Reg Read Only' ... PASSED.
+Running test 'SendBufferError1 Reg Read Only' ... PASSED.
+
+WARNING: The following tests will require a system reboot after execution.
+
+Running test 'Enter Freeze Mode' ... PASSED.
+Running test 'DebugPortSel Reg Read/Write Val' ... PASSED.
+Running test 'IntMask Reg Read/Write Val' ... PASSED.
+Running test 'ErrorMask Reg Read/Write Val' ... PASSED.
+Running test 'RcvCtrl Reg Read/Write Val' ... PASSED.
+Running test 'RcvBTHQP Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrSize Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrCnt Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrEntSize Reg Read/Write Val' ... PASSED.
+Running test 'IBCCtrl Reg Read/Write Val' ... PASSED.
+Running test 'EXTCtrl Reg Read/Write Val' ... PASSED.
+Running test 'RcvBTHQP Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrSize Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrCnt Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrEntSize Reg Read/Write Val' ... PASSED.
+Running test 'RcvPartitionKey Reg Read/Write Val' ... PASSED.
+Running test 'SendPIOAvailAddr Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrAddr0 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrAddr1 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrAddr2 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrAddr3 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrAddr4 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrTailAddr0 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrTailAddr1 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrTailAddr2 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrTailAddr3 Reg Read/Write Val' ... PASSED.
+Running test 'RcvHdrTailAddr4 Reg Read/Write Val' ... PASSED.
+Running test 'Exit Freeze Mode' ... PASSED.
+
+*** Don't forget to reboot the system as it could be unstable now. ***
+
+
+*** Please ensure the external loopback connector is attached. ***
+
+Running test 'Disable HW Error Reporting' ... PASSED.
+Running test 'Disable HW Error Interrupts' ... PASSED.
+Running test 'Get TX Packet Count' ... PASSED.
+Running test 'Get RX Packet Count' ... PASSED.
+Running test 'Send 1 Good Packet' ... PASSED.
+Running test 'Verify 1 Packet Sent' ... PASSED.
+Running test 'Verify 1 Packet Received' ... PASSED.
+Running test 'Get TX Packet Count' ... PASSED.
+Running test 'Get RX Packet Count' ... PASSED.
+Running test 'Get TX DWord Count' ... PASSED.
+Running test 'Get RX DWord Count' ... PASSED.
+Running test 'Send Bad Packet' ... PASSED.
+Running test 'Verify 1 Packet Sent' ... PASSED.
+Running test 'Verify 1 Packet Received' ... PASSED.
+Running test 'Verify DWords Sent' ... PASSED.
+Running test 'Verify DWords Received' ... PASSED.
+Running test 'Set TX Packet Count to Wrap Point' ... PASSED.
+Running test 'Set RX Packet Count to Wrap Point' ... PASSED.
+Running test 'Set TX DWord Count to Wrap Point' ... PASSED.
+Running test 'Set RX DWord Count to Wrap Point' ... PASSED.
+Running test 'Send 1 Packet' ... PASSED.
+Running test 'Verify Packet Sent Counter is 0' ... PASSED.
+Running test 'Verify Packet Received Counter is 0' ... PASSED.
+Running test 'Verify DWords Sent Counter is 0' ... PASSED.
+Running test 'Verify DWords Received Counter is 0' ... PASSED.
+Running test 'Set TX FC Packet Count to Wrap Point' ... PASSED.
+Running test 'Set RX FC Packet Count to Wrap Point' ... PASSED.
+Running test 'Verify TX FC Packet Counter < 0x50' ... PASSED.
+Running test 'Verify RX FC Packet Counter < 0x50' ... PASSED.
+Running test 'Get TX Packet Count' ... PASSED.
+Running test 'Get RX Packet Count' ... PASSED.
+Running test 'Get TX UnsupVLErr Count' ... PASSED.
+Running test 'Get RX BadFormat Count' ... PASSED.
+Running test 'Send Bad Packet' ... PASSED.
+Running test 'Verify 1 Packet Sent' ... PASSED.
+Running test 'Verify 1 Packet Received' ... PASSED.
+Running test 'Verify 1 TX UnsupVLErr' ... PASSED.
+Running test 'Verify 1 RX BadFormat' ... PASSED.
+Running test 'Set TX UnsupVLErr Count to Wrap Point' ... PASSED.
+Running test 'Set TX UnsupVLErr Count to Wrap Point' ... PASSED.
+Running test 'Send Bad Packet Packet' ... PASSED.
+Running test 'Verify TX UnsupVLErr Counter Wrapped' ... PASSED.
+Running test 'Verify RX BadFormat Counter Wrapped' ... PASSED.
+Running test 'Get TX Packet Count' ... PASSED.
+Running test 'Get RX Packet Count' ... PASSED.
+Running test 'Get TX BadLen Count' ... PASSED.
+Running test 'Get RX BadLen Count' ... PASSED.
+Running test 'Get RX EBP Count' ... PASSED.
+Running test 'Get RX VCRC Count' ... PASSED.
+Running test 'Send Bad Packet' ... PASSED.
+Running test 'Verify 1 Packet Sent' ... PASSED.
+Running test 'Verify 1 Packet Received' ... PASSED.
+Running test 'Verify 1 TX BadLen' ... PASSED.
+Running test 'Verify 1 RX BadLen' ... PASSED.
+Running test 'Verify 1 RX EBP' ... PASSED.
+Running test 'Verify 1 RX VCRC' ... PASSED.
+Running test 'Set TX BadLen Count to Wrap Point' ... PASSED.
+Running test 'Set RX BadLen Count to Wrap Point' ... PASSED.
+Running test 'Set RX EBP Count to Wrap Point' ... PASSED.
+Running test 'Set RX VCRC Count to Wrap Point' ... PASSED.
+Running test 'Send Bad Packet Packet' ... PASSED.
+Running test 'Verify TX BadLen Counter Wrapped' ... PASSED.
+Running test 'Verify RX BadLen Counter Wrapped' ... PASSED.
+Running test 'Verify RX EBP Counter Wrapped' ... PASSED.
+Running test 'Verify RX VCRC Counter Wrapped' ... PASSED.
+
+*** You may remove the external loopback if you want.***
+
+
+WARNING: The first test disables all ports.
+         Any active ports will not function after the test runs.
+         Also note that some of these tests could fail when there is
+         traffic due to a lookup buf in the RXE.
+
+Running test 'Disable All RX Ports Test' ... PASSED.
+Running test 'Disable All Interrupts Test' ... PASSED.
+Running test 'Enter Freeze Mode' ... PASSED.
+Running test 'Store RXE Memory Values Group' ... PASSED.
+Running test 'RcvTID Array0 Addressing Test' ... PASSED.
+Running test 'RcvTID Array1 Addressing Test' ... PASSED.
+Running test 'RcvTID Array2 Addressing Test' ... PASSED.
+Running test 'RcvTID Array3 Addressing Test' ... PASSED.
+Running test 'RcvTID Array4 Addressing Test' ... PASSED.
+Running test 'RcvTID Array5 Addressing Test' ... PASSED.
+Running test 'RcvTID Array6 Addressing Test' ... PASSED.
+Running test 'RcvTID Array7 Addressing Test' ... PASSED.
+Running test 'RcvTID Array8 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array0 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array1 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array2 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array3 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array4 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array5 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array6 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array7 Addressing Test' ... PASSED.
+Running test 'RcvEgr Array8 Addressing Test' ... PASSED.
+Running test 'RXE Buffer 0-63 Address Test' ... PASSED.
+Running test 'RXE Buffer 64-127 Address Test' ... PASSED.
+Running test 'RXE Buffer 128-130 Address Test' ... PASSED.
+Running test 'RXE Flag Buffer Address Test' ... PASSED.
+Running test 'RXE Lookup1 Queue Address Test' ... PASSED.
+Running test 'RXE Lookup2 Queue Address Test' ... PASSED.
+Running test 'RXE DMA Header Address Test' ... PASSED.
+Running test 'RXE DMA Data Address Test' ... PASSED.
+Running test 'RcvTID Array0 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array1 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array2 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array3 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array4 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array5 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array6 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array7 Read/Write Test' ... PASSED.
+Running test 'RcvTID Array8 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array0 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array1 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array2 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array3 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array4 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array5 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array6 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array7 Read/Write Test' ... PASSED.
+Running test 'RcvEgr Array8 Read/Write Test' ... PASSED.
+Running test 'RXE Buffer 0-63 Read/Write Test' ... PASSED.
+Running test 'RXE Buffer 64-127 Read/Write Test' ... PASSED.
+Running test 'RXE Buffer 128-130 Read/Write Test' ... PASSED.
+Running test 'RXE Flag Buffer Read/Write Test' ... PASSED.
+Running test 'RXE Lookup1 Queue Read/Write Test' ... PASSED.
+Running test 'RXE Lookup2 Queue Read/Write Test' ... PASSED.
+Running test 'RXE DMA Header Read/Write Test' ... PASSED.
+Running test 'RXE DMA Data Read/Write Test' ... PASSED.
+Running test 'RcvTID Array0 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array1 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array2 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array3 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array4 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array5 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array6 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array7 Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array8 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array0 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array1 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array2 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array3 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array4 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array5 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array6 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array7 Walking 1's Test' ... PASSED.
+Running test 'RcvEgr Array8 Walking 1's Test' ... PASSED.
+Running test 'RXE Buffer 0-63 Walking 1's Test' ... PASSED.
+Running test 'RXE Buffer 64-127 Walking 1's Test' ... PASSED.
+Running test 'RXE Buffer 128-130 Walking 1's Test' ... PASSED.
+Running test 'RXE Flag Buffer Walking 1's Test' ... PASSED.
+Running test 'RXE Lookup1 Queue Walking 1's Test' ... PASSED.
+Running test 'RXE Lookup2 Queue Walking 1's Test' ... PASSED.
+Running test 'RXE DMA Header Walking 1's Test' ... PASSED.
+Running test 'RXE DMA Data Walking 1's Test' ... PASSED.
+Running test 'RcvTID Array0 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array1 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array2 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array3 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array4 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array5 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array6 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array7 Walking 0's Test' ... PASSED.
+Running test 'RcvTID Array8 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array0 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array1 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array2 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array3 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array4 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array5 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array6 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array7 Walking 0's Test' ... PASSED.
+Running test 'RcvEgr Array8 Walking 0's Test' ... PASSED.
+Running test 'RXE Buffer 0-63 Walking 0's Test' ... PASSED.
+Running test 'RXE Buffer 64-127 Walking 0's Test' ... PASSED.
+Running test 'RXE Buffer 128-130 Walking 0's Test' ... PASSED.
+Running test 'RXE Flag Buffer Walking 0's Test' ... PASSED.
+Running test 'RXE Lookup1 Queue Walking 0's Test' ... PASSED.
+Running test 'RXE Lookup2 Queue Walking 0's Test' ... PASSED.
+Running test 'RXE DMA Header Walking 0's Test' ... PASSED.
+Running test 'RXE DMA Data Walking 0's Test' ... PASSED.
+Running test 'Restore RXE Memory Values Group' ... PASSED.
+Running test 'PIO Buffers Addressing Test Group' ... PASSED.
+Running test 'TXE FIFO Addressing Test Group' ... PASSED.
+Running test 'TXE PBC Addressing Test Group' ... PASSED.
+Running test 'PIO Buffers Read/Write Test Group' ... PASSED.
+Running test 'TXE FIFO Read/Write Test Group' ... PASSED.
+Running test 'TXE PBC Read/Write Test Group' ... PASSED.
+Running test 'PIO Buffers Walking 1's Test Group' ... PASSED.
+Running test 'TXE FIFO Walking 1's Test Group' ... PASSED.
+Running test 'TXE PBC Walking 1's Test Group' ... PASSED.
+Running test 'PIO Buffers Walking 0's Test Group' ... PASSED.
+Running test 'TXE FIFO Walking 0's Test Group' ... PASSED.
+Running test 'TXE PBC Walking 0's Test Group' ... PASSED.
+Running test 'Exit Freeze Mode' ... PASSED.
+
+*** Don't forget that any active ports are now disabled. ***
+
+
+Total Tests Run = 271, with 0 failures.
+
+
+4.1 Sample Run of Manufacturing Test
+------------------------------------
+
+InfiniPath Diagnostics Version $Revision: 1.28 $, $Date: 05/06/08 16:39:50-07:00 $
+Test Time: Mon Aug  1 07:39:52 2005
+
+
+Using already assigned LID 1.
+Testing Unit ID 0.
+...............................................................................................................................................................................................................................................................................
+
+Total Tests Run = 271, with 0 failures.
+
+
+4.1 Sample Run of Manufacturing Test with Failures
+--------------------------------------------------
+
+InfiniPath Diagnostics Version $Revision: 1.28 $, $Date: 05/06/08 16:39:50-07:00 $
+Test Time: Mon Aug  1 08:09:09 2005
+
+
+Using already assigned LID 1.
+Testing Unit ID 0.
+..................................................................................................................................................................................................................................................................X..X..X..X...
+* Failed Test 'PIO Buffers Addressing Test Group'.  Cause:
+   4096 PIO Memory errors detected.  Last error was:
+Readback verification got 0xffffffffffffffff, expected 0x10f
+at entry 271, after 10 attempts.
+* Failed Test 'PIO Buffers Read/Write Test Group'.  Cause:
+   12288 PIO Memory errors detected.  Last error was:
+Readback verification got 0xffffffffffffffff, expected 0x0
+at entry 271, after 10 attempts.
+* Failed Test 'PIO Buffers Walking 1's Test Group'.  Cause:
+   4096 PIO Memory errors detected.  Last error was:
+Readback verification got 0xffffffffffffffff, expected 0x10f
+at entry 271, after 10 attempts.
+* Failed Test 'PIO Buffers Walking 0's Test Group'.  Cause:
+   4096 PIO Memory errors detected.  Last error was:
+Readback verification got 0xffffffffffffffff, expected 0x10f
+at entry 271, after 10 attempts.
+
+Total Tests Run = 271, with 4 failures.

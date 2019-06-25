@@ -1,0 +1,782 @@
+#! /bin/bash
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2013-2015, 2017 Intel Corporation, All rights reserved.
+#  Copyright (C) 2006, 2007, 2008 QLogic Corporation, All rights reserved.
+#  Copyright (c) 2006 PathScale, Inc. All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2013-2015, 2017 Intel Corporation, All rights reserved.
+#  Copyright (C) 2006, 2007, 2008 QLogic Corporation, All rights reserved.
+#  Copyright (c) 2006 PathScale, Inc. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# This script is used primarily for testing purposes.   It provides
+# low level access through the /sys filesystem into the HFI driver.
+
+# Some functions require root permissions
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin:${PATH}
+
+shopt -s extglob
+
+declare DRV_NAME="hfi1"
+declare DRV_SNAME="hfi"
+declare KERNEL_DEBUG_DIR=/sys/kernel/debug/tracing opt= list= \
+    prog=$(basename ${0}) sysbase=/sys/class/infiniband/${DRV_NAME} \
+    opa=/etc/opa \
+    modbase=/sys/module/${DRV_NAME} kernel_caps= user_caps= \
+    default_pci_ids=/usr/share/hwdata/pci.ids pci_ids= \
+    full_device_name=
+declare KERNEL_TRACE_EVENTS_DIR=${KERNEL_DEBUG_DIR}/events
+declare -a ALL_EVENTS ENABLE_EVENTS DISABLE_EVENTS
+declare -i dump=0 follow=0 enable=0 unit=0 port=1 \
+    allunits=1 allports=1 didvers=0 exval=0 \
+    didsomething=0 tracing=0 do_list_trace=0 do_clear_trace=0 \
+    do_disable_trace=0 do_enable_trace=0 do_follow_trace=0 \
+    do_list_enabled_trace=0 do_dump_trace=0 idx cap_mask_shift=24 \
+    do_cap_add=0 do_cap_remove=0 do_caps_show=0 cap_edit=0 can_do_caps=1 \
+    gen_cap_mask=0 list_caps=0
+declare -A TRACE_EVENT_LEVELS=( [DEBUG]=0x2 [RVPKT]=0x10 [INIT]=0x20 \
+    [VERB]=0x40 [PKT]=0x80 [PROC]=0x100 [MM]=0x200 [ERRPKT]=0x400 \
+    [SDMA]=0x800 [VPKT]=0x1000 [LINKVERB]=0x200000 [VERBOSE]=0x2 ) \
+    CAP_MASK_ARRAY
+declare -A DEFAULT_CAP_MASK_ARRAY=( [DMA_RTAIL]=0x1 [SDMA]=0x2 [SDMA_AHG]=0x4 \
+    [EXTENDED_PSN]=0x8 [HDRSUPP]=0x10 [USE_DMA_HEAD]=0x40 \
+    [MULTI_PKT_EGR]=0x80 [NODROP_RHQ_FULL]=0x100 [NODROP_EGR_FULL]=0x200 \
+    [TID_UNMAP]=0x400 [PRINT_UNIMPL]=0x800 [ALLOW_PERM_JKEY]=0x1000 \
+    [NO_INTEGRITY]=0x2000 [PKEY_CHECK]=0x4000 [STATIC_RATE_CTRL]=0x8000 \
+    [SDMA_HEAD_CHECK]=0x20000 [EARLY_CREDIT_RETURN]=0x40000 )
+
+function error() {
+    echo "ERROR:" ${@}
+}
+
+# Tracing related functions
+function enable_trace_event() {
+    local event="${1}"
+    if validate_trace_event ${event} event; then
+    	echo 1 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
+    	return ${?}
+    else
+	error "Unknown tracing event '${event}'!"
+	return 1
+    fi
+}
+
+function disable_trace_event() {
+    local event="${1}"
+    if validate_trace_event ${event} event; then
+    	echo 0 > ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable
+    	return ${?}
+    else
+	error "Unknown tracing event '${event}'!"
+	return 1
+    fi
+}
+
+function enable_trace() {
+    [ -f ${KERNEL_DEBUG_DIR}/tracing_on ] && \
+	echo 1 > ${KERNEL_DEBUG_DIR}/tracing_on
+}
+
+function disable_trace() {
+    [ -f ${KERNEL_DEBUG_DIR}/tracing_on ] && \
+	echo 0 > ${KERNEL_DEBUG_DIR}/tracing_on
+}
+
+function dir_has_trace_events() {
+    local dir="${1}"
+    [ "$(find ${dir} -type d | grep -v ${dir}$ 2>/dev/null)" ] && return 0 || return 1
+}
+
+function get_all_trace_events() {
+    local all= event= short=
+    all=$(find ${KERNEL_TRACE_EVENTS_DIR}/hfi1_* ${KERNEL_TRACE_EVENTS_DIR}/rvt* -type d)
+    for event in ${all}; do
+	short="${event##${KERNEL_TRACE_EVENTS_DIR}/}"
+	dir_has_trace_events ${event} && short=${short}/
+	ALL_EVENTS[${#ALL_EVENTS[@]}]=${short}
+    done
+}
+
+function validate_trace_event() {
+    local ev="hfi1_${1}" var=${2} e=
+
+    for e in ${ev} ${ev}/ ${ev##hfi1_} ${ev##hfi1_}/ ${ev//\///hfi1_}; do
+	if [[ " ${ALL_EVENTS[@]} " =~ " ${e} " && \
+	    -f ${KERNEL_TRACE_EVENTS_DIR}/${e}/enable ]]; then
+	    [ "${var}" ] && eval ${var}=${e}
+	    return 0
+	fi
+    done
+    return 1
+}
+
+function list_trace_events() {
+    local -i prefix=0 spaces=3
+    local fmt= strip=
+    echo "List of available HFI1 trace events. To enable events from the"
+    echo "list below, list the events' complete hierarchy path separated"
+    echo "by '/' (e.i. 'ctxt/ctxt_setup')."
+    echo "Enabling a parent trace event will enable all children of that"
+    echo "event."
+    for event in ${ALL_EVENTS[@]}; do
+	prefix=$(($(echo ${event//\//\ } | wc -w) * ${spaces}))
+	fmt="%${prefix}s%s\n"
+	[[ "${event}" =~ .*\/$ ]] && strip="${event}" || event=${event##${strip}}
+	printf "${fmt}" "" "${event##hfi1_}"
+    done
+}
+
+function list_enabled_trace_events() {
+    local -i prefix=0 spaces=3
+    local fmt= strip= enabled=
+    echo "Showing enabled/disabled HFI1 trace events:"
+    for event in ${ALL_EVENTS[@]}; do
+	prefix=$(($(echo ${event//\//\ } | wc -w) * ${spaces}))
+	fmt="%${prefix}s%-$((35-${prefix}))s %s\n"
+	[ "$(cat ${KERNEL_TRACE_EVENTS_DIR}/${event}/enable)" = "1" ] && \
+	    enabled="enabled" || enabled="disabled"
+	[[ "${event}" =~ .*\/$ ]] && strip="${event}" || event=${event##${strip}}
+	printf "${fmt}" "" "${event##hfi1_}" ${enabled}
+    done
+}
+
+function clear_trace_buffer() {
+    [ -f ${KERNEL_DEBUG_DIR}/trace ] && \
+	echo > ${KERNEL_DEBUG_DIR}/trace || \
+	error "Could not find kernel trace buffer"
+}
+
+function dump_trace_buffer() {
+    [ -f ${KERNEL_DEBUG_DIR}/trace ] && \
+	cat ${KERNEL_DEBUG_DIR}/trace || \
+	error "Could not find kernel trace buffer"
+}
+
+function stop_follow() {
+    fuser -INT ${TMPDIR}/.w
+    rm -f ${TMPDIR}/.w
+}
+
+function follow_trace_buffer() {
+    if [ -f ${KERNEL_DEBUG_DIR}/trace ]; then
+	cat ${KERNEL_DEBUG_DIR}/trace_pipe 99>${TMPDIR}/.w
+    else
+	error "Could not find kernel trace buffer"
+    fi
+}
+# End Tracing related functions
+
+# Driver capabilities related functions
+function initialize_cap_mask_array() {
+    local caps name v path=/usr/include/rdma
+    local -i value
+
+    if [ -r ${path}/${DRV_SNAME}/${DRV_NAME}_user.h ]; then
+	caps=$(/bin/grep '^#define '${DRV_NAME^^*}_CAP \
+	    ${path}/${DRV_SNAME}/${DRV_NAME}_user.h | \
+	    awk '{print $2}')
+	[ -z "${caps}" ] && return 1
+	for cap in ${caps}; do
+	    name=${cap##${DRV_NAME^^*}_CAP_}
+	    v=$(/bin/grep '#define '${cap}' ' ${path}/${DRV_SNAME}/${DRV_NAME}_user.h | \
+		sed -re 's/.*(\(.*\)).*/\1/' -e 's/[A-Za-z]//g')
+	    eval "value=\$(( ${v} ))"
+	    CAP_MASK_ARRAY[${name}]=${value}
+	done
+	return 0
+    else
+	for key in ${!DEFAULT_CAP_MASK_ARRAY[@]}; do
+	    CAP_MASK_ARRAY[${key}]=${DEFAULT_CAP_MASK_ARRAY[${key}]}
+	done
+	return 0
+    fi
+    return 1
+}
+
+function get_driver_cap_mask() {
+    local -i value=0
+    [ -r ${modbase}/parameters/cap_mask ] && \
+	value=$(cat ${modbase}/parameters/cap_mask)
+    echo $(( ${value} & 0x7fffffffffffffff ))
+}
+
+function set_driver_cap_mask() {
+    local -i value=${1:-0} rc=1
+    if [ ${value} -ne 0 -a -r ${modbase}/parameters/cap_mask ]; then
+	echo ${value} > ${modbase}/parameters/cap_mask
+	rc=${?}
+    fi
+    return ${rc}
+}
+
+function bitmask2strings() {
+    local -i bitmask=${1}
+    local caps= cap=
+
+    for cap in ${!CAP_MASK_ARRAY[@]}; do
+	[ $(( ${bitmask} & ${CAP_MASK_ARRAY[${cap}]} )) -ne 0 ] && \
+		caps="${caps} ${cap}"
+    done
+    echo ${caps}
+}
+
+function supportedcaps() {
+    local cap=
+
+    echo "List of driver capabilities:"
+    for cap in ${!CAP_MASK_ARRAY[@]}; do
+	echo -e "\t\t${cap}"
+    done
+}
+
+
+function decode_cap_mask() {
+    local -i bitmask=${1:-0} mask=0 cap_mask=$(( ((1 << ${cap_mask_shift}) - 1) ))
+    local -A masks
+
+    [ ${bitmask} -eq 0 ] && bitmask=$(get_driver_cap_mask)
+    mask=$(( ${bitmask} & 0x7fffffffffffffff ))
+    masks=([kernel]=$((${mask} & ${cap_mask})) \
+	[user]=$(((${mask} >> ${cap_mask_shift}) & ${cap_mask})))
+    echo "Enabled Capabilities:"
+    for masktype in ${!masks[@]}; do
+	echo -e "\t${masktype^*}:"
+	for cap in $(bitmask2strings ${masks[${masktype}]}); do
+	    echo -e "\t\t${cap}"
+	done
+    done
+    echo
+    echo "For a detailed description of capabilities, please refer to"
+    echo "the User's Guide."
+}
+
+function get_cap_mask() {
+    local kcaps="${1}" ucaps="${2}" cap=
+    local -i  mask=0
+
+    for cap in ${kcaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && echo "${cap}:invalid capability name" && continue
+	mask=$(( ${mask} | ${CAP_MASK_ARRAY[${cap}]} ))
+    done
+    for cap in ${ucaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && echo "${cap}:invalid capability name" && continue
+	mask=$(( ${mask} | (${CAP_MASK_ARRAY[${cap}]} << ${cap_mask_shift}) ))
+    done
+    printf "cap_mask for given input is: 0x%X \n"  "$mask"
+}
+
+function add_cap_mask() {
+    local kcaps="${1}" ucaps="${2}" cap=
+    local -i value=0 mask=$(get_driver_cap_mask)
+
+    for cap in ${kcaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && continue
+	mask=$(( ${mask} | ${CAP_MASK_ARRAY[${cap}]} ))
+    done
+    for cap in ${ucaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && continue
+	mask=$(( ${mask} | (${CAP_MASK_ARRAY[${cap}]} << ${cap_mask_shift}) ))
+    done
+    set_driver_cap_mask ${mask}
+    return ${?}
+}
+
+function remove_cap_mask() {
+    local kcaps="${1}" ucaps="${2}" cap=
+    local -i value=0 mask=$(get_driver_cap_mask)
+
+    for cap in ${kcaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && continue
+	mask=$(( ${mask} & ~${CAP_MASK_ARRAY[${cap}]} ))
+    done
+    for cap in ${ucaps}; do
+	[ -z "${CAP_MASK_ARRAY[${cap}]}" ] && continue
+	mask=$(( ${mask} & ~(${CAP_MASK_ARRAY[${cap}]} << ${cap_mask_shift}) ))
+    done
+    set_driver_cap_mask ${mask}
+    return ${?}
+}
+
+usage() {
+	exec 1>&2
+	echo "Usage: ${prog} [-u unit#] [-E <event>] [-D <event>]"
+	echo "      [-m <debug mask>] [-r/-R <cap>[,<cap>]] [-t/-T <cap>[,<cap>]]"
+	echo "      [-acCedfhiLsSv] [-g/-G <cap>[,<cap>]]"
+	echo
+	echo "   -u    - Specify which HFI1 unit to operate on."
+	echo "   -i    - Display HFI1 unit information."
+	echo "   -a    - List available HFI1 tracing events."
+	echo "   -E    - Enable tracing event. Enabling a tracing event"
+	echo "           automatically enables tracing."
+	echo "   -D    - Disable tracing event."
+	echo "   -c    - Clear trace buffer."
+	echo "   -e    - Enable kernel tracing."
+	echo "   -d    - Disable kernel tracing."
+	echo "   -f    - Follow the kernel trace buffer."
+	echo "   -g/-G - generate cap mask for the given list of capabilities."
+	echo "           (input as string names). -g applies to features for user"
+	echo "           contexts, -G applies to capabilities for kernel contexts."
+	echo "   -h    - Show this help screen."
+	echo "   -L    - List status (enabled/disabled) of all HFI1 trace events."
+	echo "   -m    - Enable/disable tracing events using bitmask."
+	echo "   -s    - Show the current content of the kernel trace buffer."
+	echo "   -S    - List all capabilities supported by the driver."
+	echo "   -C    - Show currently enabled driver features."
+	echo "   -r/-R - Disable a feature (or a list of capabilities) from the list"
+	echo "           of currently enabled ones. -r applies to features for"
+	echo "           user contexts, while -R is for kernel contexts. To"
+	echo "           disable multiple features, use a comma-separated list."
+	echo "   -t/-T - Enable a feature (or a list of features). -t applies to"
+	echo "           user contexts, while -T is for kernel contexts. To enable"
+	echo "           multiple features, use a comma-separated list."
+
+	exit ${1}
+}
+
+# show info for a given port
+show_port_info() {
+        local u=${1} pdir=${2} p
+	p=${pdir##*/}
+	if [ "${p}" = '*' ]; then
+	    echo No ports found
+	    return 1;
+	elif [ ! -d ${pdir} ]; then
+	    echo Port ${p} not present
+	    return 1;
+	fi
+	read status_str < ${pdir}/state
+	read status < ${pdir}/phys_state
+	read lid < ${pdir}/lid
+	read gid < ${pdir}/gids/0
+	guid=${gid##fe80:0000:0000:0000:}
+	case "${status_str}" in
+	*ACTIVE*) echo "${u},${p}: Status: ${status} ${status_str}" ;;
+	*) echo "${u},${p}: Status: ${status} ${status_str} [link not Active]" ;;
+	esac
+	echo "${u},${p}: LID=${lid} GUID=${guid}"
+
+}
+
+# Set full device name by parsing pci.ids file, using system and vendor
+# ids from devices sys pci folder.
+# First and only agrument is the path to sys pci folder of the device.
+# Functions result is set in full_device_name.
+find_device_name() {
+	local pcipath=${1}
+	local venid= subvenid= devid= subdevid=
+	local denmatch= endmatch= awkscript= devlist=
+	local venname= devname=
+
+	# read ids for vendor, subvendor, device and subdevice
+	read venid < ${pcipath}vendor
+	venid=${venid:2}
+	read subvenid < ${pcipath}subsystem_vendor
+	subvenid=${subvenid:2}
+	read devid < ${pcipath}device
+	devid=${devid:2}
+	read subdevid < ${pcipath}subsystem_device
+	subdevid=${subdevid:2}
+
+	# list all potential device and subdevice names for this pci
+	devmatch="^[\t ]+${devid}"
+	endmatch="^[\t ]*[0-9a-fA-F]+  "
+	# first find vendor block, then trace to device subblock
+	# print all the lines of the subblock to devlist
+	# end on start of next device subblock or vendor block
+	awkscript="
+	    /^${venid}/{f=1};
+	    f==1 {if (/${devmatch}/){f=2; print; next}};
+	    f==2 {if (/${endmatch}/){f=0} else {print}};"
+	devlist=$(awk "${awkscript}" ${pci_ids})
+
+	# look for subvendor name in pci.ids
+	venname=$(sed -n "s/^${subvenid}  \(.*\)$/\1/p" ${pci_ids})
+	if [ -z "${venname}" ]; then
+	    # if subvendor wasn't found, use vendor name
+	    venname=$(sed -n "s/^${venid}  \(.*\)$/\1/p" ${pci_ids})
+	fi
+
+	# look for subdevice name in list of potential devices
+	devname=$(echo "${devlist}" | sed -n "s/${subvenid} ${subdevid}  \(.*\)$/\1/p")
+	if [ -z "${devname}" ]; then
+	    # if subdevice wasn't found, look for device name
+	    devname=$(echo "$devlist" | sed -n "s/^[\t ]*${devid}  \(.*\)$/\1/p")
+	fi
+
+	full_device_name="${venname} ${devname}"
+}
+
+# show info for a unit, specific port, or all ports
+show_unit_info() {
+	local errs=0 class thisunit=${1} src_version=0
+	local linkdest= pcipath=
+
+	class=${sysbase}_${thisunit}
+
+	if [ ! -d ${class} ]; then
+		echo No HFI info available for unit ${thisunit}
+		return 1
+	fi
+	if [ ${didvers} -eq 0 ]; then
+		read driver_version < ${modbase}/version
+		read driver_srcversion < ${modbase}/srcversion
+		echo Driver Version: ${driver_version}
+		echo Driver SrcVersion: ${driver_srcversion}
+		if [ -r "${opa}/version_wrapper" ]; then
+			read opa_version < ${opa}/version_wrapper
+                fi
+		if [ -n "$opa_version" ]; then
+			echo Opa Version: ${opa_version}
+		fi
+		didvers=1
+	fi
+
+	read serial < ${class}/serial
+	read boardver < ${class}/boardversion
+
+	# get path to pci folder from link
+	linkdest=$(readlink -f ${class})
+	pcipath=${linkdest%%infiniband*}
+
+	# calculate full device name
+	if [ -r ${pci_ids} ]; then
+	    # if pci.ids file was found, use it to build device name
+	    find_device_name $pcipath
+	else
+	    # in case of missing pci.ids, fall back to board_id
+	    read full_device_name < ${class}/board_id
+	fi
+
+	echo ${thisunit}: BoardId: ${full_device_name}
+	echo ${thisunit}: Version: ${boardver}
+	echo ${thisunit}: ChipSerial: ${serial}
+
+	if [ ${allports} -eq 0 ]; then
+	    show_port_info ${thisunit} ${class}/ports/${port}
+	    (( errs += ${?} ))
+	else
+	    for d in $(echo ${class}/ports/*); do
+		show_port_info ${thisunit} ${d}
+		(( errs += ${?} ))
+	    done
+	fi
+
+}
+
+show_status () {
+	local errs=0 cmd=
+
+	if ! egrep -qs '^hfi1' /proc/modules ; then
+		error 'HFI1 driver not loaded ?'
+		(( errs++ ))
+	fi
+	board="$(lspci -n | egrep -iw '8086:24f[01]')"
+	if [ -z "${board}" ]; then
+		error 'No HFI1 hardware detected'
+		(( errs++ ))
+	fi
+	if [ ${errs} -gt 0 ]; then
+	    (( exval += errs ))
+	    return ${errs}
+	fi
+
+	# find path to pci.ids by querying hwdata package information
+	if [ "$(cat /etc/issue | egrep -i 'ubuntu|debian')" ]; then
+	    cmd="dpkg-query -L"
+	else
+	    cmd="rpm -ql"
+	fi
+	pci_ids=$(${cmd} hwdata | grep pci.ids)
+	# if path was not found in package, use default path
+	if [ -z ${pci_ids} ]; then
+	    pci_ids=${default_pci_ids}
+	fi
+
+	if [ ${allunits} -eq 0 ]; then
+	    show_unit_info ${unit}
+	    (( errs += ${?} ))
+	else
+	    for d in $(echo ${sysbase}*); do
+		u=${d##*hfi1_}
+		show_unit_info ${u}
+		(( errs += ${?} ))
+	    done
+	fi
+
+	return ${errs}
+}
+
+validnumber() {
+	case "${1}" in
+	0[xX]+([0-9a-fA-F])) ;;
+	0*([0-7])) ;;
+	[1-9]*([0-9])) ;;
+	*) error "${1}" is not a valid numeric string
+	   return 1;;
+	esac
+	return 0
+}
+
+if ! initialize_cap_mask_array ; then
+    echo "Error initializing capability mask array!"
+    can_do_caps=0
+fi
+
+while getopts "acCdD:eE:fg:G:hil:Lm:R:r:sSt:T:u:vw:" C; do
+    case ${C} in
+	a) tracing=1 ; do_list_trace=1 ;;
+	c) tracing=1 ; do_clear_trace=1 ;;
+	C) cap_edit=1 ; do_caps_show=1 ;;
+	d) tracing=1 ; do_disable_trace=1 ;;
+	D) tracing=1 ; DISABLE_EVENTS[${#DISABLE_EVENTS[@]}]="${OPTARG}" ;;
+	e) tracing=1 ; do_enable_trace=1 ;;
+	E) tracing=1 ; ENABLE_EVENTS[${#ENABLE_EVENTS[@]}]="${OPTARG}" ;;
+	f) tracing=1 ; do_follow_trace=1 ;;
+	g) gen_cap_mask=1 ; user_caps="${OPTARG}" ;;
+	G) gen_cap_mask=1 ; kernel_caps="${OPTARG}" ;;
+	h) usage 0 ;;
+	i) getinfo=1 ;;
+	l) lid="${OPTARG}"
+	   if ! validnumber "${lid}"
+	   then usage 1
+	   fi
+	   ;;
+	L) tracing=1 ; do_list_enabled_trace=1 ;;
+	m) debuglvl="${OPTARG}"
+	   tracing=1
+	   if ! validnumber "${debuglvl}" ; then
+	       usage 1;
+	   fi
+	   ;;
+	r) cap_edit=1 ; do_cap_remove=1 ; user_caps="${OPTARG}" ;;
+	R) cap_edit=1 ; do_cap_remove=1 ; kernel_caps="${OPTARG}" ;;
+	s) tracing=1 ; do_dump_trace=1 ;;
+	S) list_caps=1 ;;
+	t) cap_edit=1 ; do_cap_add=1 ; user_caps="${OPTARG}" ;;
+	T) cap_edit=1 ; do_cap_add=1 ; kernel_caps="${OPTARG}" ;;
+	u) case "${OPTARG}" in
+	   [0-9]|[1-9][0-9])
+		unit=${OPTARG}
+		allunits=0
+		;;
+	   [0-9]:[1-4]|[1-9][0-9]:[1-4])
+	   	unit=${OPTARG%:*}
+	   	port=${OPTARG#*:}
+		allunits=0 allports=0
+		;;
+	   *) usage 1 ;;
+   	   esac
+	   ;;
+	w) widopt="${OPTARG}"
+	   case "${OPTARG}" in
+	   1) widdopt=1 ;;
+	   4) widopt=2 ;;
+	   A) widopt=3 ;;
+	   *) echo Unsupported width option "${OPTARG}"
+	      usage 1
+		  ;;
+	   esac
+	   ;;
+	*|'?') usage 1;;
+	esac
+done
+
+OPTIND=$((${OPTIND}-1))
+if [ ${OPTIND} -lt ${#} ]; then usage 1; fi
+
+syspath=${sysbase}_${unit}
+if [ ! -e "${syspath}" ]; then
+	error "No HFI1 module loaded?"
+	exit 1
+fi
+
+if [ "${getinfo}" ]; then
+	(( didsomething++ ))
+	show_status
+fi
+
+if [ ${cap_edit} -eq 1 ]; then
+    if [ ${can_do_caps} -eq 0 ]; then
+	echo "Cannot perform this function!"
+    else
+	if [ ${do_caps_show} -eq 1 ]; then
+	    decode_cap_mask
+	    (( didsomething++ ))
+	fi
+
+	if [ "$(id -u)" !=  "0" ]; then
+	    error "Modifying driver features requires running this tool as 'root'"
+	    exit 1
+	fi
+
+	# Convert everything to upper case
+	kernel_caps=${kernel_caps^^*}
+	user_caps=${user_caps^^*}
+
+	if [ ${do_cap_add} -eq 1 ]; then
+	    ! add_cap_mask "${kernel_caps//,/ }" "${user_caps//,/ }" && \
+		error "Failed to enable driver features"
+	    (( didsomething++ ))
+	fi
+
+	if [ ${do_cap_remove} -eq 1 ]; then
+	    ! remove_cap_mask "${kernel_caps//,/ }" "${user_caps//,/ }" && \
+		error "Failed to disable driver features"
+	    (( didsomething++ ))
+	fi
+    fi
+fi
+
+if [ ${gen_cap_mask} -eq 1 ]; then
+	kernel_caps=${kernel_caps^^*}
+	user_caps=${user_caps^^*}
+	get_cap_mask "${kernel_caps//,/}" "${user_caps//,/ }"
+	(( didsomething++ ))
+fi
+
+if [ ${list_caps} -eq 1 ]; then
+	supportedcaps
+	(( didsomething++ ))
+fi
+
+if [ ${tracing} -eq 1 ]; then
+    if [ "$(id -u)" !=  "0" ]; then
+	error "This utility must be run as root"
+	exit 1
+    fi
+
+    if [ ! -d ${KERNEL_DEBUG_DIR} ]; then
+	if ! mount -t debugfs none /sys/kernel/debug; then
+	    error "Could not mount kernel debug filesystem"
+	    exit 2
+	fi
+    fi
+
+    get_all_trace_events
+
+    if [ ${do_list_trace} -eq 1 ]; then
+	list_trace_events
+	exit 0
+    fi
+
+    if [ ${do_list_enabled_trace} -eq 1 ]; then
+	list_enabled_trace_events
+	exit 0
+    fi
+
+    if [ ${do_clear_trace} -eq 1 ]; then
+	clear_trace_buffer
+	(( didsomething++ ))
+    fi
+
+    if [ ${do_enable_trace} -eq 1 -a ${do_disable_trace} -eq 1 ]; then
+	error "Conflicting command line options to enable and disable tracing"
+	exit 1
+    fi
+
+    if [ "${debuglvl}" ]; then
+	for ev in ${!TRACE_EVENT_LEVELS[@]}; do
+	    [ $((${debuglvl} & ${TRACE_EVENT_LEVELS[${ev}]})) -ne 0 ] && \
+		enable_trace_event "${DRV_NAME}_trace/${DRV_NAME}_${ev}" || \
+		disable_trace_event "${DRV_NAME}_trace/${DRV_NAME}_${ev}"
+	done
+	(( didsomething++ ))
+    fi
+
+    if [ ${#ENABLE_EVENTS[@]} -eq 1 -a "${ENABLE_EVENTS[0]}" = "all" ]; then
+	for event in ${ALL_EVENTS[@]}; do
+	    enable_trace_event ${event}
+	done
+    else
+	for event in ${ENABLE_EVENTS[@]}; do
+	    enable_trace_event ${event}
+	done
+    fi
+
+    if [ ${#DISABLE_EVENTS[@]} -eq 1 -a "${DISABLE_EVENTS[0]}" = "all" ]; then
+	for event in ${ALL_EVENTS[@]}; do
+	    disable_trace_event ${event}
+	done
+    else
+	for event in ${DISABLE_EVENTS[@]}; do
+	    disable_trace_event ${event}
+	done
+    fi
+
+    [ ${#ENABLE_EVENTS[@]} -gt 0 -o ${#DISABLE_EVENTS[@]} -gt 0 ] && \
+	(( didsomething++ ))
+
+    list=" ${ENABLE_EVENTS[@]} "
+    for item in ${DISABLE_EVENTS[@]}; do
+	[[ ${list} =~ " ${item} " ]] && ((enable++))
+    done
+
+    [ ${#ENABLE_EVENTS[@]} -gt ${#DISABLE_EVENTS[@]} -o ${enable} -ne 0 ] && \
+	do_enable_trace=1
+
+    if [ ${do_enable_trace} -eq 1 ]; then
+	enable_trace
+	(( didsomething++ ))
+    elif [ ${do_disable_trace} -eq 1 ]; then
+	disable_trace
+	(( didsomething++ ))
+    fi
+
+    if [ ${do_dump_trace} -eq 1 ]; then
+	dump_trace_buffer
+	(( didsomething++ ))
+    elif [ ${do_follow_trace} -eq 1 ]; then
+	trap stop_follow SIGINT
+	follow_trace_buffer
+	trap SIGINT
+	disable_trace
+	for event in ${ENABLE_EVENTS[@]}; do
+	    disable_trace_event $event
+	done
+	(( didsomething++ ))
+    fi
+fi
+
+[ ${didsomething} -eq 0 ] && usage 1
+exit ${exval}

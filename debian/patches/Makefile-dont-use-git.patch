@@ -1,0 +1,67 @@
+Description: Remove usage of git from Makefile
+ Makefile uses git to determine the version, release, changelog, etc. This
+ is only valid for the upstream git repository. Remove this usage of git.
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Forwarded: no
+Last-Update: <2019-01-30>
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/Makefile
++++ b/Makefile
+@@ -12,13 +12,10 @@
+ 
+ DISTRO_NAME := $(shell if [ -e /etc/os-release ]; then sed -n '/^ID=/'p /etc/os-release | sed 's/ID=//g'; elif [ -n $(cat /etc/redhat-release | grep "6.7") ]; then  echo "rhel67"; fi)
+ 
+-# The desired version number comes from the most recent tag starting with "v"
+-VERSION := $(shell if [ -e .git ] ; then  git  describe --tags --abbrev=0 --match='v*' | sed -e 's/^v//' -e 's/-/_/'; else echo "version" ; fi)
+-#
+-# The desired release number comes the git describe following the version which
+-# is the number of commits since the version tag was planted suffixed by the g<commitid>
+-RELEASE := $(shell if [ -e .git ] ; then git describe --tags --long --match='v*' | sed -e 's/v[0-9.]*-\(.*\)/\1/' -e 's/-/_/' | sed -e 's/_g.*$$//'; else echo "release" ; fi)
+-#
++
++# VERSION and RELEASE come from spec file
++VERSION=$(shell grep Version: debian/rhel/hfi1-diagtools-sw.spec | cut -f2 -d: | sed 's/ //')
++RELEASE=$(shell grep Release: debian/rhel/hfi1-diagtools-sw.spec | cut -f2 -d: | cut -f1 -d% | sed 's/ //')
+ 
+ # Concatenated version and release
+ VERSION_RELEASE := $(VERSION)-$(RELEASE)
+@@ -35,7 +32,7 @@
+ SUBDIRS:= testlib utils tests man scripts-enduser
+ endif
+ 
+-NOSHIP_SUBDIRS := hfidiags itp doc wfr_oem_tool
++NOSHIP_SUBDIRS := hfidiags itp doc
+ ALL_DISTROLIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/rhel67.*\" -prune -o
+ RHEL_67LIB := -regex \".*/lib/readline/libedit2.*\" -prune -o -regex \".*/lib/readline/default.*\" -prune -o
+ EXCLUDE_LIB := $(shell if [[ ${DISTRO_NAME} == "rhel67" ]]; then echo ${RHEL_67LIB}; elif [[ ${DISTRO_NAME} == "rhel" ||  ${DISTRO_NAME} == "sles" ]]; then echo ${ALL_DISTROLIB}; fi)
+@@ -94,19 +91,11 @@
+ 	$(MAKE) RPM_NAME=${RPM_NAME}-noship package-$@
+ 	$(MAKE) RPM_NAME=hfidiags package-$@
+ 	$(MAKE) RPM_NAME=hfidiags-kmod package-$@
+-	-git status --short -u
+ 
+ specfile: $(RPM_NAME).spec.in
+ 	sed -e 's/@VERSION@/'${VERSION}'/g' \
+ 		-e 's/@RELEASE@/'${RELEASE}'/g' ${RPM_NAME}.spec.in > \
+ 		${RPM_NAME}.spec
+-	if [ -e .git ]; then \
+-		echo '%changelog' >> ${RPM_NAME}.spec; \
+-		git log --no-merges v$(BASEVERSION)..HEAD --format="* %cd <%ae>%n- %s%n" \
+-		| sed 's/-[0-9][0-9][0-9][0-9] //' \
+-		| sed 's/ [0-9][0-9]:[0-9][0-9]:[0-9][0-9]//' \
+-                >> ${RPM_NAME}.spec; \
+-        fi
+ 
+ git_version:
+ 	g_version=${GIT_VERSION}; \
+@@ -181,9 +170,6 @@
+ 	cp ${RPM_NAME}.spec ${RPM_NAME}-${VERSION_RELEASE}
+ 
+ generic-dist: package-distclean specfile package-$(RPM_NAME) git_version
+-	if [ -e .git ] ; then \
+-		git log -n1 --pretty=format:%H > ${RPM_NAME}-${VERSION_RELEASE}/COMMIT ; \
+-	fi
+ 	tar czvf ${RPM_NAME}-${VERSION_RELEASE}.tar.gz ${RPM_NAME}-${VERSION_RELEASE} \
+ 		--transform=s,hfidiags/debian,debian,
+ 	rm -rf ${RPM_NAME}-${VERSION_RELEASE}

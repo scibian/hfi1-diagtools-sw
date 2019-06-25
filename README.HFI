@@ -1,0 +1,52 @@
+Compiling hfi1-diagtools-sw for hfi1
+
+NOTES:
+
+0. System prerequisites:
+
+These RPMs must be installed on your build system:
+	readline-devel.x86_64
+	ncurses-devel.x86_64
+
+Installing readline-devel will also pull in ncurses-devel.
+
+Rational: The diagnostic tools use readline and ncurses.
+
+
+1. Libraries
+
+Either install the hfi1-psm-devel and hfi1-psm-devel-noship RPMS, or build
+and install hfi1-psm to some directory of your choosing:
+
+make DESTDIR=$INSTALLDIR
+make DESTDIR=$INSTALLDIR install install-noship
+
+Rationale: The test programs link against libinfinipath; the hfi1-psm 'install'
+target provides this.  Some internal PSM headers are needed, and are installed
+using the 'install-noship' target.  
+
+
+2. Build
+
+Build hfi1-diagtools-sw.
+
+Type "make" in hfi1-diagtools-sw.
+
+NOTE: The build system assumes hfi1 PSM is installed in its default location,
+under /usr.  If PSM libraries and headers (including the devel-noship headers)
+are not there, set the environment variable PSMDIR to point to the PSM install
+directory.
+
+
+3. Building RPMS
+
+Type "make dist" in hfi1-diagtools-sw to create an rpmbuild-compatible tarball.
+
+NOTE: Like mentioned above, PSMDIR can be set to point to a hfi1 PSM
+installation.  It must include both libinfinipath.so and the noship headers.
+
+Type "rpmbuild -ta hfi1-diagtools-sw-<VERSION>.tar.gz" to create the RPM/SRPM.
+
+The hfi1-diagtools-sw RPM requires the hfi1-psm-devel-noship RPM to be installed
+first.
+

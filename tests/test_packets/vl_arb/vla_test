@@ -1,0 +1,236 @@
+#! /bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# script to test VL arbitration. The scheme is:
+#
+# We will run on a "target" machine, which receives the packets
+# We sill execute commands on a "source" machine via ssh
+#
+# Restart driver on "target" machine with tap_bufs_log2=7, to allocate
+# 128 entries to the diagnostic packet-tap
+# MANUAL for now
+#
+# Program VL arbitration by temporarily modifying /etc/ofa/opensm.conf
+# and restarting opensmd.
+#
+# Quiesce all non-test traffic (stop opensm, ifdown ib*)
+#
+# drain packet-tap on target
+#
+# Invoke vla_send via ssh on source machine:
+#  disable sending via diags and sendctrl observer
+#  Send (128/num_vls) packets of the specified size, one each VL
+#  Enable sending, to release all apckets at once
+#
+# use tap to see packets received, strip to just VL number
+#
+# compare to expected VL sequence
+#
+# above are repeated for each test case.
+
+if [ "$REAL_RUN" = "" -o "$REAL_RUN" = "0" ]
+then
+  export REAL_RUN=0
+else 
+  export REAL_RUN=1
+fi
+
+# Interface to test is first command-line parameter.
+ifc=$1
+if [ -z "$ifc" ]
+then
+  ifc=0:1
+fi
+
+test_spec=$2
+logdir=/scratch/vla_logs
+if [ ! -d $logdir ]
+then
+  mkdir -p $logdir
+fi
+logfile=$logdir/${test_spec}.log
+
+# Locate self, and by implication other scripts and files
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+myname=`hostname`
+
+case "$myname" in
+  "pd2-00" )
+    pkt_source="pd2-01"
+  ;;
+  "pd2-01" )
+    pkt_source="pd2-00"
+  ;;
+  * )
+    pkt_source=dummy
+    echo "Unknown packet source when running on $myname"
+  ;;
+esac
+
+echo "Run $test_spec from $script_dir on $myname, packets from $pkt_source" | tee $logfile
+
+# down possible noise sources
+if [ $REAL_RUN -ne 0 ]
+then
+  /etc/init.d/opensmd stop | tee -a $logfile
+  ifdown ib0 | tee -a $logfile
+  ifdown ib1 | tee -a $logfile
+else
+  echo "Would down ib0, ib1" | tee -a $logfile
+fi
+
+# Since opensm seems to ignore config file, write VLarb registers "by hand"
+if [ -f "$test_spec" ]
+then
+  if [ $REAL_RUN -ne 0 ]
+  then
+    # Below will set stop opensm and set arb-table.
+    # Need to do that on the source
+    # $script_dir/vla_set $ifc $test_spec
+    echo "Set VLarb table on sender" | tee -a $logfile
+    ssh root@$pkt_source REAL_RUN=1 $script_dir/vla_set $ifc $script_dir/$test_spec | tee -a $logfile
+  else
+    REAL_RUN=0 $script_dir/vla_set $ifc $test_spec | tee -a $logfile
+  fi
+else
+  echo "No test spec named \"$test_spec\"" | tee -a $logfile
+  exit 1
+fi
+
+# log VL-arb settings in use
+# smpquery -D vlarb 0
+
+num_vls=`grep "^qos_max_vls=" $test_spec | cut -d '=' -f2`
+pkt_len=`echo $test_spec | cut -d '_' -f3`
+pkt_cnt=`expr 128 / $num_vls`
+
+# Split interface spec into unit and port
+
+port=`echo $ifc | cut -s -d ':' -f2`
+if [ "$port" = "" ]
+then
+  port=1
+fi
+
+unit=`echo $ifc | cut -d ':' -f1`
+if [ "$unit" = "" ]
+then
+  unit=0
+fi
+
+# Oversubscribe credits for the VLS we are using. This will
+# cause packets to be dropped, but will hopefully return credits
+# fast enough to Tx to avoid disturbing priority arbitration
+if [ "$OVERSUBSCRIBE_CREDS" != "" -a $REAL_RUN -ne 0 ]
+then
+  RXCREDTBL=`expr 640 + \( $port \* 4096 \)`
+  vl=0
+  while [ $vl -lt $num_vls ]
+  do
+    echo "OverSubscribe RxCredits $OVERSUBSCRIBE_CREDS for VL$vl" | tee -a $logfile
+    echo -e "m $RXCREDTBL $OVERSUBSCRIBE_CREDS 0xFFF\nq\n" | ipath_diags -u$ifc > /dev/null
+    RXCREDTBL=`expr $RXCREDTBL + 8`
+    vl=`expr $vl + 1`
+  done
+fi
+
+# Lower FlowCtrlWaterMark and FlowCtrlPeriod
+if [ $REAL_RUN -ne 0 ]
+then
+  echo "Lower  FlowCtrlWaterMark and FlowCtrlPeriod" | tee -a $logfile 
+  IBCCTRLA=`expr 1376 + \( $port \* 4096 \)`
+  echo -e "m $IBCCTRLA 257 65535\nq\n" | ipath_diags -u$ifc > /dev/null
+fi
+
+export TLID=`ipath_control -u$ifc -iv | grep LID | cut -d '=' -f2 | cut -d ' ' -f1`
+
+# Drain packet tap
+$script_dir/ipath_pkt_tap -c200 -p0 -t2 > /dev/null
+
+if [ $REAL_RUN -ne 0 ]
+then
+  #NOTE that we assume back-to-back. That is we ask source to send on same ifc as us
+  ssh root@$pkt_source $script_dir/vla_send $ifc $TLID $test_spec | tee -a $logfile 
+fi
+
+# Allow emulated chip time to pass traffic
+num_pkts=`grep "^#V " $test_spec | cut -c4- | tr -d "\n" | wc -c`
+sleep 2 
+if [ $REAL_RUN -ne 0 ]
+then
+  $script_dir/ipath_pkt_tap -c$num_pkts -p1 -t2 | grep "^VL: " | cut -c5- > /tmp/tap_vls
+  got_vls=`tr -d "\n " < /tmp/tap_vls`
+else
+  got_vls="None, dry-run"
+fi
+
+exp_vls=`grep "^#V " $test_spec | cut -c4- | tr -d "\n"`
+if [ "$exp_vls" != "$got_vls" ]
+then
+  echo "Expected:" | tee -a $logfile
+  echo "$exp_vls" | tee -a $logfile
+  echo "received:" | tee -a $logfile
+  echo "$got_vls" | tee -a $logfile
+  exit 1
+else
+  echo Expected VL order received | tee -a $logfile
+fi
+

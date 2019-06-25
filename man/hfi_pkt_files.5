@@ -1,0 +1,254 @@
+.TH hfi_pkt_files 5
+'Copyright (C) 2013, 2014. Intel Corporation. All rights reserved.
+'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation.
+.SH NAME
+hfi_pkt_files \- packet files for use with hfi1_pkt_send
+.LP
+These files are uses by
+.BR hfi1_pkt_send (8)
+to specify the packets to be sent. The files consist of hexadecimal
+data and a few symbolic values, interspersed with comments.
+.LP
+Comments are introduced with
+.B #
+characters and continue to the end of line.
+.LP
+The end of a packet is indicated by a period in column 1, optionally
+followed by one of several modifiers for special test modes.
+.SH "RAW DATA"
+hexadecimal input data is intended to be human-readable. Each pair of
+hexadecimal digits is sent as one octet.
+Multi-octet values (e.g. 12345678) are sent in the order left-to-right,
+but simply by taking two octets at a time, so
+.B 123 456
+will send four octets:
+.B 12 03 45 06
+.SH "SYMBOLIC HEADERS"
+In addition to straight hexadecimal data, some commonly used headers can be
+specified via symbols. These are of two forms:
+.LP
+.B HDR
+and
+.B HDR(
+.BI field=value
+.B )
+where
+.LP
+.I field
+is one of the field-names recognized for each header (listed below).
+.LP
+.I value
+can be decimal, octal or hexadecimal notation. Octal is denoted by a
+leading zero and hexadecimal by the prefix
+.B 0x.
+.LP
+Multiple fields can be specified within the parentheses, but all must be on one line.
+Default values are used for any fields whose values are unspecified.
+.LP
+
+
+
+.TP 8
+.B PBC
+Per Buffer Control, includes fields
+.RS 4
+.TP 8
+.B PbcLengthDWs
+Packet Length in 32-bit words.
+.TP 8
+.B PbcVL
+Virtual Lane
+.TP 8
+.B PbcFecn
+Forward Explicit Congestion Notification
+.TP 8
+.B PbcTestBadIcrc
+Hardware will intentionally insert bad ICRC
+.TP 8
+.B PbcInsertBypassIcrc
+ICRC should be inserted for bypass packets
+.TP 8
+.B PbcCreditReturn
+Request credit return update
+.TP 8
+.B PbcInsertHcrc
+Control HCRC insertion policy
+.TP 8
+.B PbcPacketBypass
+Indicates whether packet is a bypass format
+.TP 8
+.B PbcTestEbp
+Hardware will intentionally set end-bad-packet
+
+.TP 8
+.B PbDcInfo
+Single bit propagated to DC interface
+.TP 8
+.B PbcIntr
+Generate an interrupt after packet has egressed
+.TP 8
+.B PbcStaticRateControl
+16-bit value loaded into Static Rate Control Counter
+.RE
+.TP 8
+.B LRH
+Local Route Header, includes fields
+.RS 4
+.TP 8
+.B VL
+Virtual Lane
+.TP 8
+.B LVer
+Link Version
+.TP 8
+.B SL
+Service Level
+.TP 8
+.B LNH
+Link Next Header (0=RAW, 1=IPV6, 2=BTH, 3=GRH)
+.TP 8
+.B DLID
+Destination Local IDentifier
+.TP 8
+.B Len
+Length in 32-bit words
+.TP 8
+.B SLID
+Source Local IDentifier
+.RE
+.TP 8
+.B GRH
+Global Route Header, includes fields
+.RS 4
+.TP 10
+.B IPVer
+Internet Protocol Version
+.TP 10
+.B TClass
+.TP 10
+.B FlowLabel
+.TP 10
+.B PayLen
+Payload Length
+.TP 10
+.B NxtHdr
+Next Header
+.TP 10
+.B HopLimit
+.TP 10
+.B SGID
+Source Global IDentifier
+.TP 10
+.B DGID
+Destination Global IDentifier
+.RE
+.TP 8
+.B BTH
+Basic Transport Header, includes fields
+.RS 4
+.TP 8
+.B OpCode
+Operation Code
+.TP 8
+.B SE
+Solicited Event
+.TP 8
+.B M
+Migration request
+.TP 8
+.B PadCnt
+Pad Count (octets added to fill last 32-bit word)
+.TP 8
+.B TVer
+Transport Header version
+.TP 8
+.B P_Key
+Partition Key
+.TP 8
+.B Resv1
+Reserved, should be zero
+.TP 8
+.B DestQP
+Destination Queue Pair
+.TP 8
+.B A
+Acknowledgement request
+.TP 8
+.B Resv2
+Reserved, should be zero
+.TP 8
+.B PSN
+Packet Seqence Number
+.RE
+.TP 8
+.B KDETH
+Key Datagram Extended Transport Header, includes fields
+.RS 4
+.TP 8
+.B KVer
+KDETH Version
+.TP 8
+.B SH
+Suppress Header
+.TP 8
+.B Intr
+Interrupt
+.TP 8
+.B TIDCtrl
+Token ID Control
+.TP 8
+.B TID
+Token ID
+.TP 8
+.B OM
+Offset Mode
+.TP 8
+.B OFFSET
+Offset
+.TP 8
+.B HCRC
+Header CRC
+.TP 8
+.B J_KEY
+Job Key
+.RE
+.SH "TEST MODIFIERS"
+Various modifications to the outgoing packet can be made by
+appending to the packet-ending
+.B '.'
+character.  Many of these fields toggle bits in the PBC structure.
+.RS 4
+.TP 3
+.B B
+Force packet to be marked with an EBP (End Bad Packet) by setting PbcTestEbp.
+.TP 3
+.B I
+Force an incorrect ICRC (Invariant CRC) by setting PbcTestBadIcrc.
+.TP 3
+.B H
+Bypass hardware HCRC insertion, allowing the HCRC specified in the packet to be sent on the wire.  Sets PbcInsertHcrc = 2.
+.TP 3
+.B Y
+Mark packet as a bypass packet by setting PbcPacketBypass.
+.TP 3
+.B C
+Instruct hardware to insert ICRC for bypass packets by setting PbcInsertBypassIcrc.
+.TP 3
+.B N
+Generate an interrupt after packet egress by setting PbcIntr.
+.TP 3
+.B D
+Set the PbcDcInfo bit.
+.TP 3
+.B F
+Set the outgoing packet's FECN value to 1 via the PbcFecn field.
+.TP 3
+.B P
+Disable padding the length of bypass packets to a multiple of 8 bytes (quadword).
+.RE
+.SH "SEE ALSO"
+.BR hfi1_pkt_send (8)
