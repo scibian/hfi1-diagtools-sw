@@ -1,0 +1,6 @@
+Where to Find Documentation
+
+Release Notes, Readme files, and the Installation and User Guides are distributed 
+separately from the software.
+
+They can be downloaded from the Intel web site.

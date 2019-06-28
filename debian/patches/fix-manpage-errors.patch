@@ -1,0 +1,126 @@
+Description: Correct errors in manpage source
+ The hfi1-diagtools-sw manpages have some errors that are flagged by
+ lintian:
+    + Illegal comment syntax.
+	+ Unterminated diversion.
+Author: Brian T. Smith <bsmith@systemfabricworks.com>
+Forwarded: no
+Last-Update: <2019-01-30>
+
+---
+--- a/man/hfi1.4
++++ b/man/hfi1.4
+@@ -1,10 +1,10 @@
+ .TH hfi1 4
+-'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+-'Copyright (C) 2006, 2007, 2008, 2009, 2011. QLogic Corporation. All rights reserved.
+-'Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation.
++.\"Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2006, 2007, 2008, 2009, 2011. QLogic Corporation. All rights reserved.
++.\"Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation.
+ .SH NAME
+ hfi1 \- device driver for Intel Omni-Path Architecture host fabric interface
+ .SH DESCRIPTION
+--- a/man/hfi1_control.8
++++ b/man/hfi1_control.8
+@@ -1,8 +1,8 @@
+ .TH hfi1_control 8
+-'Copyright (C) 2014, 2015 Intel Corporation. All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation
++.\"Copyright (C) 2014, 2015 Intel Corporation. All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation
+ .SH NAME
+ hfi1_control \- Set and display HFI parameters for diagnostic purposes
+ .SH SYNOPSIS
+@@ -163,4 +163,4 @@
+ Copyright (C) 2014, 2015. Intel Corporation. All rights reserved.
+ .SH AUTHOR
+ Intel Corporation.
+-.TP 12
++
+--- a/man/hfi1_pkt_send.8
++++ b/man/hfi1_pkt_send.8
+@@ -1,10 +1,10 @@
+ .TH hfi1_pkt_send 8
+-'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+-'Copyright (C) 2006, 2007, 2008. QLogic Corporation. All rights reserved.
+-'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation.
++.\"Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2006, 2007, 2008. QLogic Corporation. All rights reserved.
++.\"Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation.
+ .SH NAME
+ hfi1_pkt_send \- Diagnostic packet sender for Intel Fabric link and HFIs
+ .SH SYNOPSIS
+--- a/man/hfi1_pkt_test.8
++++ b/man/hfi1_pkt_test.8
+@@ -1,10 +1,10 @@
+ .TH hfi1_pkt_test 8
+-'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+-'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+-'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation.
++.\"Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
++.\"Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation.
+ .SH NAME
+ hfi1_pkt_test \- Diagnostic test for link and bandwidth for HFIs
+ .SH SYNOPSIS
+--- a/man/hfi1stats.8
++++ b/man/hfi1stats.8
+@@ -1,10 +1,10 @@
+ .TH hfi1stats 8
+-'Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
+-'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+-'Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation.
++.\"Copyright (C) 2013, 2014, 2015. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
++.\"Copyright (C) 2004, 2005, 2006.  PathScale, Inc.  All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation.
+ .SH NAME
+ hfi1stats \- show counters and statistics for Omni-Path
+ .SH SYNOPSIS
+--- a/man/hfi_pkt_files.5
++++ b/man/hfi_pkt_files.5
+@@ -1,10 +1,10 @@
+ .TH hfi_pkt_files 5
+-'Copyright (C) 2013, 2014. Intel Corporation. All rights reserved.
+-'Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
+-'Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
+-'This is not free software.
+-'Redistribution or modification is prohibited without the prior express
+-'written permission of Intel Corporation.
++.\"Copyright (C) 2013, 2014. Intel Corporation. All rights reserved.
++.\"Copyright (C) 2006, 2007, 2008, 2009. QLogic Corporation. All rights reserved.
++.\"Copyright (C) 2006.  PathScale, Inc.  All rights reserved.
++.\"This is not free software.
++.\"Redistribution or modification is prohibited without the prior express
++.\"written permission of Intel Corporation.
+ .SH NAME
+ hfi_pkt_files \- packet files for use with hfi1_pkt_send
+ .LP

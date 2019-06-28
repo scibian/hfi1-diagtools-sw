@@ -1,0 +1,166 @@
+.TH hfi1_control 8
+'Copyright (C) 2014, 2015 Intel Corporation. All rights reserved.
+'This is not free software.
+'Redistribution or modification is prohibited without the prior express
+'written permission of Intel Corporation
+.SH NAME
+hfi1_control \- Set and display HFI parameters for diagnostic purposes
+.SH SYNOPSIS
+.B hfi1_control
+[-u unit#] [-b [on|off]] [-E <event>] [-D <event>] [-m <debug mask>] [-r/-R
+<cap>[,<cap>]] [-t/-T <cap>[,<cap>]] [-acedfhiLsSv]
+.SH DESCRIPTION
+Other than the
+.B -i
+option, this script requires root permissions.
+.P
+This is a shell script that can be used to manipulate various
+parameters for the HFI driver. Many of them are intended to be
+used only when diagnosing problems, and may require special
+system configurations. Use of the options may require restarting
+the driver or utility programs in order to recover from incorrect
+parameters.
+.P
+Most of the functionality is accessed via the /sys filesystem.
+.TP 12
+.BI -a
+List all available HFI tracing events. This option will show a hiarachical
+view of all the supported/available HFI tracing events.
+.TP 12
+.BI -c
+Clear any accumulated content in the kernel tracing buffer. If the kernel
+tracing buffer isn't being "followed" (see
+.B -f
+option), content is accumulated and not cleared between reads of the
+tracing buffer.
+.TP 12
+.BI -d
+Disable kernel tracing. This turns off tracing for the entire kernel
+and all modules regardless of any enabled tracepoints.
+.TP 12
+.BI -D \ event
+Disable a specific HFI tracing event. Multiple
+.B -D
+options on the same command line are supported to disable multiple
+tracing events.
+.TP 12
+.BI -e
+Enable kernel tracing. This turns kernel tracing on. Only tracing event
+previously enabled will be displayed.
+.TP 12
+.BI -E \ event
+Enable a specific HFI tracing event. Multiple
+.B -E
+options on the same command line are supported to enable multiple tracing
+events. After processing all the
+.B -E
+and
+.B -D
+command line options, if there are any trace points to be enabled the
+global kernel tracing (
+.B -e
+) is enabled, by default.
+.TP 12
+.BI -f
+Follow the kernel tracing buffer. This option will cause the script to
+continuously read the tracing buffer and display content as it appears in
+the buffer.
+.IP "" 12
+Unlike the
+.B -s
+option, once the tracing content has been read from the kernel tracing buffer
+and displayed, it is removed from the buffer. Therefore, it can not be re-read
+again.
+.TP 12
+.BI -s
+Display the content of the kernel trace buffer. This is a non-desctructibe read.
+The content of the buffer remains in the buffer until it is cleared (see the
+.B -c
+option).
+.TP 12
+.BI -S
+Display the list of capabilities supported by the driver.
+.TP 12
+.BI -L
+Display status (enabled/disabled) of all HFI tracing points.
+.TP 12
+.BI -u \ number
+Specify the unit number on which to operate.
+.TP 12
+.BI -i
+List useful information about the driver, and each unit, including
+LID, GUID, serial number, and status. If the link is not in an operational
+state, the output will contain the string
+.BR [IB\ link\ not\ Active] .
+By default, information about all adapters is displayed. Use the
+.B -u
+option to limit to one HFI.
+.TP 12
+.BI -v
+Verbose; when combined with
+.BR -i ,
+additional information is displayed about the adapter.
+It is otherwise ignored.
+.TP 12
+.B -h
+Display a usage message and exit.
+.TP 12
+.BI -m \ number
+Set the debug level for the driver.   The value is a bitmap of debug
+levels.   These messages are typically displayed using the
+.I cat /sys/kernel/debug/tracing/trace_pipe
+command.  Common bit values would be:
+.RS 12
+.IP 0x0
+default, just errors and warnings, which can also be displayed with the
+.BR dmesg (1)
+command.
+.IP 0x2
+debug messages, not too verbose, of somewhat general interest
+.IP 0x20
+initialization messages of various kinds, driver, hardware, and process
+.IP 0x200000
+OmniPath link level debugging, can be extremely verbose.
+.PP
+For further information on debug levels, see the
+.B HFI User's Guide.
+.RE
+.TP 12
+.BI -b \ flag
+Blinks LEDs to identify board. Flag is set to
+.B on
+or
+.BR off.
+.RE
+.TP 12
+.BI -C
+Show currently enabled driver capabilities.
+.RE
+.TP 12
+.BI -r/-R \ cap
+Disable a capability (or a list of capabilities) from the list of currently enabled
+ones.
+.B -r
+applies to capabilities for user contexts, while
+.B -R
+is for kernel contexts. To disable multiple capabilities, use a comma-separated list.
+.B HF
+.RE
+.TP 12
+.BI -t/-T \ cap
+Enable a capability (or a list of capabilities).
+.B -t
+applies to user contexts, while
+.B -T
+is for kernel contexts. To enable multiple capabilities, use a comma-separated list.
+.SH SEE ALSO
+.BR hfi1 (4)
+.br
+Additional documentation is available on the Intel website:
+.br
+http://www.intel.com/omnipath
+.SH COPYRIGHT
+Copyright (C) 2014, 2015. Intel Corporation. All rights reserved.
+.SH AUTHOR
+Intel Corporation.
+.TP 12

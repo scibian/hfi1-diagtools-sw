@@ -1,0 +1,41 @@
+# Copyright (c) 2007, 2008, 2009 Qlogic Corporations.  All rights reserved.
+# Unpublished -- rights reserved under the copyright laws of the United States.
+# USE OF A COPYRIGHT NOTICE DOES NOT IMPLY PUBLICATION OR DISCLOSURE.
+# THIS SOFTWARE CONTAINS CONFIDENTIAL INFORMATION AND TRADE SECRETS OF
+# QLOGIC CORPORATION.  USE, DISCLOSURE, OR REPRODUCTION IS PROHIBITED
+# WITHOUT THE PRIOR EXPRESS WRITTEN PERMISSION OF QLOGIC CORPORATION.
+
+The files in this directory are intended to test the response to
+various packets. Some are scripts:
+
+pkt_probe uses ipath_pkt_send to send a packet on an interface assumed to
+	be in loopback, gathers the various counter changes, and compares
+	them to the expected counters.
+	The expected counters are passed to it in the form of a symbol,
+	QIB_EXPECTED_CNTRS e.g.
+	QIB_EXPECTED_CNTRS="RxDlidFltr=2 RxEBP=2"
+
+prep_pkt_vars is common code to set up various symbols. It is sourced by
+	other scripts for ease in maintenance. Among other things, it
+	tries to detect the chip type so tests can account for variations.
+
+*_pkt_cntr_test scripts check classes of counters. Each can be run individually,
+or they can be run in sequence by pkt_cntr_suite
+
+basic_pkt_cntr_test --- simple packet and word counts
+
+lenfmt_pkt_cntr_test --- Length errors, VL errors, etc.
+
+lli_pkt_cntr_test --- tests Local Link Integrity, PhyErr Threshold, etc.
+
+pkt_cntr_suite -- runs all in sequence.
+
+tests use pkt_probe to run the individual tests, which differ depending
+on the chip type under test.
+
+The rest are packet files, as described by man (5) ipath_pkt_files. Their names
+are intended to convey their contents. In particular, a file ending in _egp
+will be sent in TestMode to prevent Tx checks from suppressing it, while a
+file ending in _mayebp may provoke a Tx error on some chips. Not all files
+are used (currently) by pkt_cntr_test, but may prove useful for one-off
+testing.

@@ -1,0 +1,143 @@
+#!/bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 QLogic Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# basic_pkt_cntr_test -- exercise the basic packet and word counters by sending various
+# packets via loopback and examining the results via ipathstats.
+#
+# Can be run "stand alone" (assumes link up, looped back) or as part
+# of pkt_cntr-suite
+#
+# the gory details are in pkt_probe, which builds on ipath_pkt_send
+# The variable QIB_EXPECTED_CNTRS is used to communicate the expected counter
+# values, e.g.
+# QIB_EXPECTED_CNTRS="RxDlidFltr=2 RxEBP=2"
+# indicates that those counts (and only those counts) should be 2
+
+ifc=$1
+
+# Locate self, and by implication other scripts and files
+if [ "$script_dir" = "" ]
+then
+  script_dir=`dirname $0`
+  # If it is relative, prepend current dir
+  leader=`echo $script_dir | cut -c1`
+  if [ "$leader" != '/' ]
+  then
+    curdir=`pwd`
+    script_dir="${curdir}/${script_dir}"
+  fi
+  export script_dir
+fi
+
+. $script_dir/prep_pkt_vars
+
+TEST_MODE_TX_WDS=`expr 58 + $TEST_MODE_ADDS`
+
+RXNORM="RxPkt=1 RxWords=58"
+TXNORM="TxPkt=1 TxWords=58"
+PKTNORM="$TXNORM $RXNORM"
+PKTTEST="TxPkt=1 TxWords=$TEST_MODE_TX_WDS $RXNORM"
+
+err_cnt=0
+
+echo "-- Normal packet should provoke no errors"
+QIB_EXPECTED_CNTRS="$PKTNORM" $ptname -L$RLID -c1 $pktdir/normal
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+echo "-- Normal packet in TestMode should provoke no errors"
+QIB_EXPECTED_CNTRS="$PKTTEST" $ptname -L$RLID -c1 $pktdir/normal_egp
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+if [ $CHIP_TYPE = 6120 ]
+then
+  echo "-- 6120 doesn't count EBP, no errs from otherwise good packet with EBP"
+  QIB_EXPECTED_CNTRS="$PKTTEST" $ptname -L$RLID -c1 $pktdir/normal_ebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+if [ $CHIP_TYPE -eq 7220 ]
+then
+  echo "-- 7220 counts EBP and packet/words, on otherwise good packet with EBP"
+  QIB_EXPECTED_CNTRS="RxEBP=1 $PKTTEST" $ptname -L$RLID -c1 $pktdir/normal_ebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+if [ $CHIP_TYPE -eq 7322 ]
+then
+  echo "-- 7322 counts EBP and pkts, no RxWords, on good packet with EBP"
+  QIB_EXPECTED_CNTRS="RxEBP=1 TxPkt=1 TxWords=$TEST_MODE_TX_WDS RxPkt=1" \
+    $ptname -L$RLID -c1 $pktdir/normal_ebp
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+echo "-- Check for detection of ICRC error"
+QIB_EXPECTED_CNTRS="RxICRCerr=1 $PKTTEST" $ptname -L$RLID -c1 $pktdir/bad_icrc
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+echo "-- Check for detection of VCRC error"
+QIB_EXPECTED_CNTRS="RxVCRCerr=1 $PKTTEST" $ptname -L$RLID -c1 $pktdir/bad_vcrc
+if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+
+if [ $CHIP_TYPE -ge 7220 ]
+then
+  echo "-- Check for VCRC error priority over ICRC"
+  QIB_EXPECTED_CNTRS="RxVCRCerr=1 $PKTTEST" \
+    $ptname -L$RLID -c1 $pktdir/bad_ivcrc
+  if [ $? -ne 0 ] ; then err_cnt=`expr $err_cnt + 1` ; fi
+fi
+
+resval=0
+if [ $err_cnt -ne 0 ]
+then
+  echo FAILED
+  resval=1
+fi
+
+echo $err_cnt errors
+exit $resval

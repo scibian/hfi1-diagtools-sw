@@ -1,0 +1,95 @@
+Overview
+--------
+
+The InfiniPath 2.0 driver consists of a core module (called ib_ipath)
+and an ethernet device emulator (called ipath_ether.) The ib_ipath module
+contains interfaces used by PSM, the kernel verbs modules (ib_verbs,
+ib_mad, etc...) and ipath_ether.
+
+
+Main driver
+-----------
+
+The main driver load/unload code is in ipath_driver.c.  This file also
+implements functionality such as setting up and tearing down the devices,
+utility functions (ipath_set_lid, etc.), high-level interrupt handling
+(ipath_kreceive), etc.
+
+The remaining important parts of the driver can be found in the following
+files:
+
+ ipath_diag.c:        diagnostics interface
+ ipath_eeprom.c:      interface for reading/writing the eeprom
+ ipath_fs.c:          ipathfs filesystem for stuff that can't go into sysfs
+ ipath_iba_6110.c:    HT-chip specific code
+ ipath_iba_6120.c:    PCIe-chip specific code
+ ipath_init_chip.c:   generic chip initialization code
+ ipath_intr.c:        low-level interrupt handling code
+ ipath_stats.c:       handles statistics gathering
+ ipath_sysfs.c:       creates and processes sysfs files
+ ipath_wc_ppc64.c:    write-combining for PPC systems
+ ipath_wc_x86_64.c:   write-combining for x86_64 systems
+ memcpy32_x86_64.S:   optimized memcpy routine
+ memcpy_nti_x86_64.S: optimized non-temporay memcpy routine
+
+
+Verbs interface
+---------------
+
+The verbs interface is used by the kernel verbs modules.  The main
+file is ipath_verbs.c, which contains initialization code to register
+and unregister with the kernel verbs layer (ipath_register_ib_device
+and ipath_unregister_ib_device.)  This mostly involves setting up a
+structure of callbacks which are invoked by the verbs layer.
+
+Other tasks performed in ipath_verbs.c include providing a sysfs interface
+for the verbs layer, handling some of the low-level verbs (alloc ucontext,
+query pkey, create ah, etc.), handling timers, interfacing with the chip
+to send packets and redirecting sends and receives to the appropriate
+protocol handlers.
+
+The following files implement various components of the remaining
+callbacks:
+
+ ipath_cq.c:   completion queue handling
+ ipath_keys.c: rkey/lkey handling
+ ipath_mad.c:  handle processing of MAD packets.
+ ipath_mmap.c: handle mmaping of completion queues into user space
+ ipath_mr.c:   memory region handling
+ ipath_qp.c:   queue pair handling
+ ipath_rc.c:   RC protocol implementation
+ ipath_uc.c:   UC protocol implementation
+ ipath_ud.c:   UD protocol implementation
+ ipath_ruc.c:  Common code between UC and RC protocols
+ ipath_srq.c:  Shared receive queues handling
+ ipath_verbs_mcast.c: Multicast QP handling
+
+
+PSM interface
+-------------
+
+PSM is a userspace library that provides a layer for implementing
+higher-level communications protocols such as MPI.  PSM uses a low-level
+interface to access the driver.
+
+The main driver provides an interface, through memory mapping, for PSM
+to use.  A user program, through PSM, opens the infinipath device and
+is assigned a unit within the nearest physical device.  It can then map
+buffers within the chip into it's address space for sending and receiving.
+The PSM interface is scattered throughout the driver, but mostly happens
+in these files:
+
+ ipath_file_ops.c:   provides an interface for PSM (i.e. userspace access)
+ ipath_user_pages.c: handles mapping device buffers into userspace
+
+
+Ethernet interface
+------------------
+
+The ethernet emulator is a seperate driver (found in ipath_eth.c) but
+has support components in the main driver, too:
+
+ ipath_eth.c:         ethernet emulator
+ ipath_layer.c:       provides an interface for the ethernet driver
+ ipath_layer_mcast.c: handles multicast membership for the ethernet driver
+ ipath_copy.c:        copies packets to/from kernel space to/from the device

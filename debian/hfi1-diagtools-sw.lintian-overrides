@@ -1,0 +1,3 @@
+# hfi1_control false positive due to extglob
+hfi1-diagtools-sw: shell-script-fails-syntax-check usr/bin/hfi1_control
+

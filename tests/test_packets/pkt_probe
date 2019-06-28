@@ -1,0 +1,252 @@
+#!/bin/sh
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 Qlogic Corporations.  All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2015 Intel Corporation, All rights reserved.
+#  Copyright (c) 2007, 2008 Qlogic Corporations.  All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# pkt_probe -- used by various pkt_cntr tests, to send selected
+# packets and compare the changes in counters to those expected,
+# as specified by environment variable  QIB_EXPECTED_CNTRS
+
+# Scan though args for -i switch if any, so ipathstats can be looking
+# at same interface
+id_intfc ()
+{
+  intfc=""
+  while [ -n "$1" ]
+  do
+    if [ "$1" = "-i" ]
+    then
+      intfc=$2
+      break
+    fi
+    shift
+  done
+  echo $intfc 
+}
+
+my_intfc=`id_intfc $@`
+if [ "$my_intfc" = "" ]
+then
+  my_intfc=0:1
+fi
+
+INTFC_SW="-i $my_intfc"
+
+# default wait for counts to settle is 1 second, but can be overridden
+# for emulation
+if [ "$PKT_PAUSE" = "" ]
+then
+  PKT_PAUSE=1
+fi
+
+# Default set of expected counters is "none".
+# Caller will set QIB_EXPECTED_CNTRS otherwise
+
+# For each counter in the stats log, check that it is expected to
+# have the counts it does. We do this by looping across expected
+# counters emitting the corresponding line with OK prefix
+# if it matches expectations, and simply passing it if not.
+chk_one_ctr ()
+{
+  ctrname=$1
+  shift
+  val=$1
+  shift
+  handled=0
+  while [ $# -gt 0 ]
+  do
+    cname=`echo $1 | cut -d '=' -f 1`
+    cmin=`echo $1 | cut -d '=' -f 2 | cut -d '-' -f1`
+    cmax=`echo $1 | cut -d '=' -f 2 | cut -s -d '-' -f2`
+    shift
+    if [ -z "$cmax" ]
+    then
+      cmax=$cmin
+    fi
+    if [ "$ctrname" != "$cname" ]
+    then
+      continue # Next counter-check
+    fi
+    handled=1
+    if [ $val -lt $cmin -o $val -gt $cmax ]
+    then
+      if [ $cmin -ne $cmax ]
+      then
+        echo "ERROR $ctrname $val not $cmin - $cmax"
+      else
+        echo "ERROR $ctrname $val not $cmin"
+      fi
+    else
+      echo "OK $ctrname is $val"
+    fi
+  done
+  if [ $handled -eq 0 ]
+  then
+    echo "Unexpected $ctrname $val"
+  fi
+}
+
+# Check that if a counter appears in the stats output, it is the expected value
+chk_expected_cnt ()
+{
+  while true
+  do
+    read ctrname val
+    if [ $? -ne 0 ]
+    then
+      break
+    fi
+    chk_one_ctr $ctrname $val $@
+  done
+}
+
+#check that all counters with expected values do indeed appear in stats output
+chk_accounted_for ()
+{
+  logname=$1
+  shift
+  while [ $# -ne 0 ]
+  do
+    cname=`echo $1 | cut -d '=' -f 1`
+    cmin=`echo $1 | cut -d '=' -f 2 | cut -d '-' -f1`
+    if [ $cmin -ne 0 ]
+    then
+      grep $cname $logname > /dev/null
+      if [ $? -ne 0 ]
+      then 
+        echo "No count for expected $1"
+      fi
+    fi
+    shift
+  done
+}
+
+# contain the various temp files to make cleanup easier during debug
+if [ ! -d /tmp/pkt_logs ]
+then
+  mkdir -p /tmp/pkt_logs
+fi
+
+export logd=/tmp/pkt_logs
+
+# File to capture the error counts that changed. Processed against
+# EXPECTED_COUNTS
+err_log=$logd/ppel_$$
+
+# File to capture traffic counts that changed. Merged with errors
+# before checking expected counts.
+traffic_log=$logd/pptl_$$
+
+# Log files (really, mostly, to capture output that would otherwise distract)
+ps_log=$logd/psl_$$
+po_log=$logd/pol_$$
+
+# If the script_dir contains a copy of ipathstats, assume it is newer/better
+stat_rdr=ipathstats
+if [ -x $script_dir/ipathstats ]
+then
+  stat_rdr=$script_dir/ipathstats
+fi
+
+# Similarly, if the script_dir contains a copy of ipath_pkt_send, use it
+pkt_send=ipath_pkt_send
+if [ -x $script_dir/ipath_pkt_send ]
+then
+  pkt_send=$script_dir/ipath_pkt_send
+fi
+
+# Start ipathstats with a _long_ "polling interval". This
+# will save output to the end of the process, provoked by SIGHUP
+$stat_rdr -eovz $INTFC_SW -c1000 > $err_log &
+$stat_rdr -ovz $INTFC_SW -c1000 > $traffic_log &
+
+# let ipathstats run at least enough for initial counts
+sleep 1
+
+# Send the packet(s) intended to provoke specific counters
+$pkt_send $@ 2> $ps_log 1> $po_log
+sndstat=$?
+if [ $sndstat -ne 0 ]
+then
+  cat $ps_log
+  fuser -v -k -HUP /ipathfs/driver_stats
+  sleep $PKT_PAUSE
+  rm -f $ps_log $po_log $err_log $traffic_log
+  exit $sndstat
+fi
+
+# Make sure things stabilized
+sleep $PKT_PAUSE
+
+# SIGHUP the stats process, to dump changed error counts
+
+fuser -s  -k -HUP /ipathfs/driver_stats
+sleep $PKT_PAUSE
+
+merge_log=$logd/merge_log_$$
+ctr_chk=$logd/ctrchk_$$
+bad_news=$logd/bad_news_$$
+
+# Merge error and traffic counts
+tail -n+3 $err_log > $merge_log
+grep 'xPk\|xWo' $traffic_log >> $merge_log
+
+chk_expected_cnt < $merge_log $QIB_EXPECTED_CNTRS > $ctr_chk
+chk_accounted_for $merge_log  $QIB_EXPECTED_CNTRS >> $ctr_chk
+
+cat $ctr_chk
+
+grep -v "^OK" $ctr_chk > $bad_news
+if [ -s $bad_news ]
+then
+  final_ret=1
+else
+  final_ret=0
+  rm -f $err_log $ps_log $po_log $traffic_log $merge_log $ctr_chk $bad_news
+fi
+
+exit $final_ret

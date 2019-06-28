@@ -1,0 +1,229 @@
+# This file is provided under a dual BSD/GPLv2 license.  When using or
+# redistributing this file, you may do so under either license.
+#
+# GPL LICENSE SUMMARY
+#
+#  Copyright (c) 2013-2015 Intel Corporation, All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# BSD LICENSE
+#
+#  Copyright (c) 2013-2015 Intel Corporation, All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#  - Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  - Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#  - Neither the name of Intel Corporation nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+# XRC SEND first
+# pbc_wd: b, cnt: 40 (0x28)
+LRH
+BTH(OpCode=0xA0, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC SEND middle
+LRH
+BTH(OpCode=0xA1, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC SEND last
+LRH
+BTH(OpCode=0xA2, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC SEND last, w/ immediate
+LRH
+BTH(OpCode=0xA3, DestQP=0x1234)
+13 12 11 10 # XRCETH
+FE ED BE EF # immediate
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC SEND only
+LRH
+BTH(OpCode=0xA4, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC SEND only, w/ immediate
+LRH
+BTH(OpCode=0xA5, DestQP=0x1234)
+13 12 11 10 # XRCETH
+FE ED BE EF # immediate
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write first
+LRH
+BTH(OpCode=0xA6, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+00 00 20 01 # len
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write middle
+LRH
+BTH(OpCode=0xA7, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write last
+LRH
+BTH(OpCode=0xA8, DestQP=0x1234)
+13 12 11 10 # XRCETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write last, w/ immediate
+LRH
+BTH(OpCode=0xA9, DestQP=0x1234)
+13 12 11 10 # XRCETH
+FE ED BE EF # immediate
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write only
+LRH
+BTH(OpCode=0xAA, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+00 00 20 02 # len
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA write only, w/ immediate
+LRH
+BTH(OpCode=0xAB, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+00 00 20 03 # len
+FE ED BE EF # immediate
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA read request
+LRH
+BTH(OpCode=0xAC, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+00 00 20 04 # len
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA read response first
+LRH
+BTH(OpCode=0xAD, DestQP=0x1234)
+00 00 00 01 # AETH
+00 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA read response middle
+LRH
+BTH(OpCode=0xAE, DestQP=0x1234)
+FF 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA read response last
+LRH
+BTH(OpCode=0xAF, DestQP=0x1234)
+00 00 00 02 # AETH
+FF 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC RDMA read response only
+LRH
+BTH(OpCode=0xB0, DestQP=0x1234)
+00 00 00 03 # AETH
+FF 00 00 00 01 00 00 00 02 00 00 00 03 00 00 00
+.
+
+# XRC ACK
+LRH
+BTH(OpCode=0xB1, DestQP=0x1234)
+00 00 00 04 # AETH
+.
+
+# XRC atomic ACK
+LRH
+BTH(OpCode=0xB2, DestQP=0x1234)
+00 00 00 04 # AETH
+01 02 03 04 05 06 07 08 # AtomicAckETH
+.
+
+# XRC CmpSwap
+LRH
+BTH(OpCode=0xB3, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+08 07 06 05 04 03 02 01 # Swap Data
+31 32 33 34 35 36 37 38 # Compare Data
+.
+
+# XRC FetchAdd
+LRH
+BTH(OpCode=0xB4, DestQP=0x1234)
+13 12 11 10 # XRCETH
+01 02 03 04 05 06 07 08 # Addr
+20 21 22 23 # R_Key
+08 07 06 05 04 03 02 01 # Add Data
+41 42 43 44 45 46 47 48 # unused
+.
+
+# XRC SEND last with invalidate
+LRH
+BTH(OpCode=0xB6, DestQP=0x1234)
+13 12 11 10 # XRCETH
+50 51 52 53 # IETH (R_Key)
+.
+
+# XRC SEND only with invalidate
+LRH
+BTH(OpCode=0xB7, DestQP=0x1234)
+13 12 11 10 # XRCETH
+60 61 62 63 # IETH (R_Key)
+.
+
