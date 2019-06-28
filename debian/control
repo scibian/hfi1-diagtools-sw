@@ -1,6 +1,6 @@
 Source: hfi1-diagtools-sw
 Maintainer: Brian T. Smith <bsmith@systemfabricworks.com>
-Section: non-free/utils
+Section: utils
 Priority: extra
 Standards-Version: 3.9.8
 Homepage: http://www.intel.com

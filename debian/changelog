@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-114-1ifs+deb9) stretch; urgency=medium
+
+   * Import hfi1-diagtools-sw 0.8-114 from IFS RHEL76 10.9.3.1.1 upstream.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Thu, 27 Jun 2019 19:25:09 -0500
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb9) stretch; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-113 from IFS RHEL76 10.9.0.1.5 upstream.
