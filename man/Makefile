@@ -9,7 +9,6 @@
 MANFMT :=  /usr/bin/groff -mandoc -Tlatin1
 
 TARGETS = hfi1_pkt_test.8.gz
-TARGETS += hfi1_eprom.8.gz
 TARGETS += hfi1_pkt_send.8.gz
 TARGETS += hfi_pkt_files.5.gz
 TARGETS += hfi1.4.gz
@@ -52,4 +51,4 @@ install: all
 	gzip < $^ > $@
 
 clean:
-	rm -f *.gz
+	rm -f $(TARGETS)
