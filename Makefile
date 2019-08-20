@@ -23,8 +23,8 @@ RELEASE := $(shell if [ -e .git ] ; then git describe --tags --long --match='v*'
 # Concatenated version and release
 VERSION_RELEASE := $(VERSION)-$(RELEASE)
 
-GIT_VERSION := "0.8-104"
-GIT_DATE := "2018-02-22 11:15:35 -0800"
+GIT_VERSION := "0.8-113"
+GIT_DATE := "2018-09-11 14:30:29 -0400"
 
 # so can do, e.g. 'make SUBDIRS=util' to build just one dir
 ifneq (,${BUILDING_32BIT})
@@ -143,6 +143,11 @@ package-hfi1-diagtools-sw:
 			-name "ib_qib.4" -prune -o \
 			-name "reglat.c" -prune -o \
 			-name "wfr_oem_tool" -prune -o \
+			-name "configvnic" -prune -o \
+			-name "debian" -prune -o \
+			-name "eprom_unit_test.sh" -prune -o \
+			-name "hfi1_eprom.c" -prune -o \
+			-name "hfi1_eprom.8" -prune -o \
 			-print); do \
 		dir=$$(dirname $$x); \
 		mkdir -p ${RPM_NAME}-${VERSION_RELEASE}/$$dir; \

@@ -3,7 +3,7 @@ Description: Remove usage of git from Makefile
  is only valid for the upstream git repository. Remove this usage of git.
 Author: Brian T. Smith <bsmith@systemfabricworks.com>
 Forwarded: no
-Last-Update: <2018-07-10>
+Last-Update: <2019-01-30>
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/Makefile
@@ -55,7 +55,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  git_version:
  	g_version=${GIT_VERSION}; \
-@@ -176,9 +165,6 @@
+@@ -181,9 +170,6 @@
  	cp ${RPM_NAME}.spec ${RPM_NAME}-${VERSION_RELEASE}
  
  generic-dist: package-distclean specfile package-$(RPM_NAME) git_version

@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 104
+Release: 113
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -48,6 +48,33 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
+* Tue Sep 11 2018 <kaike.wan@intel.com>
+- configvnic: Use management pkey for umad request
+
+* Tue Sep 11 2018 <kaike.wan@intel.com>
+- configvnic: Correct the encoding of routing control bits
+
+* Tue Sep 11 2018 <kaike.wan@intel.com>
+- configvnic: Update the README file
+
+* Mon Sep 10 2018 <john.fleck@intel.com>
+- Remove files from wfr-diagtools-sw SRPM which should not go to customers
+
+* Thu Aug 16 2018 <artur.koziej@intel.com>
+- Fix "umad_send() error: -5" in configvnic when SL not equal to 1
+
+* Thu Aug 16 2018 <artur.koziej@intel.com>
+- Fix parsing command line arguments in configvnic
+
+* Wed Jul 25 2018 +0200 <artur.koziej@intel.com>
+- Add lib*-devel packages to dependencies in configvnic README
+
+* Fri Jul 13 2018 +0200 <artur.koziej@intel.com>
+- Add configvnic tool to bring up VNIC ports
+
+* Wed Jun 27 2018 <lukasz.daniluk@intel.com>
+- Remove dreprecated ipserror.h file usage
+
 * Mon Feb 26 2018 <mike.marciniszyn@intel.com>
 - Add test to reproduce late_ebp error
 

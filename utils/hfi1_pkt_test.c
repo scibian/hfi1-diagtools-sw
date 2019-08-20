@@ -67,7 +67,6 @@
 
 #include "opa_user.h"
 #include "opa_service.h"
-#include "ipserror.h"
 
 #include <linux/stddef.h>
 
@@ -105,7 +104,11 @@ static void do_responses(int justack) __attribute__ ((__noreturn__));
 
 #define TRUE 1
 #define FALSE 0
+
 #define OK 0
+#define NO_RESOURCE_AVAILABLE -1
+#define DEVICE_INIT_FAILED -2
+#define UNKNOWN_DEVICE -3
 
 #define MAX_PAYLOAD (10*1024)
 
@@ -450,7 +453,7 @@ static int _transfer_frame(void *header, void *payload, int length)
                 ((struct hfi_diags_pkt_header*)header)->seq_num,
                 stack_ctrl.spio_avail_send_credits,
                 credits_needed);
-        return IPS_RC_NO_RESOURCE_AVAILABLE;
+        return NO_RESOURCE_AVAILABLE;
     }
 
     stack_ctrl.spio_fill_send_credits += num_credits;
@@ -463,7 +466,7 @@ static int _transfer_frame(void *header, void *payload, int length)
         (stack_ctrl.spio_cur_slot + num_credits) % 
         stack_ctrl.spio_total_send_credits;
 
-    return IPS_RC_OK;
+    return OK;
 }
 
 // linux doesn't have strlcat; this is a stripped down implementation
@@ -838,7 +841,7 @@ static int hfi_pkt_open(int unit, uint16_t * my_lid, uint16_t * my_ctxt)
         if(stack_ctrl.file_desc == -1) {
 		_HFI_ERROR("hfi_context_open failed. Device = %d, Error = %s\n",
                         unit, strerror(errno));
-		return IPS_RC_UNKNOWN_DEVICE;
+		return UNKNOWN_DEVICE;
 	}
 
 	memset(&hfi_drv_user_info, 0, sizeof(struct hfi1_user_info_dep));
@@ -853,7 +856,7 @@ static int hfi_pkt_open(int unit, uint16_t * my_lid, uint16_t * my_ctxt)
 
 	hfi_ctrl = hfi_userinit(stack_ctrl.file_desc, &hfi_drv_user_info);
 	if (hfi_ctrl == NULL)
-		return IPS_RC_DEVICE_INIT_FAILED;
+		return DEVICE_INIT_FAILED;
        
 	/* Setting P_KEY to default value */
 	cmd.type = PSMI_HFI_CMD_SET_PKEY;
@@ -875,7 +878,7 @@ static int hfi_pkt_open(int unit, uint16_t * my_lid, uint16_t * my_ctxt)
 	mymtu = hfi_get_port_vl2mtu(hfi_drv_ctxt_info->unit, 1, stack_ctrl.vl);
 	if (mymtu == -1) {
 		_HFI_INFO("Failed to get our IB MTU");
-		return IPS_RC_DEVICE_INIT_FAILED;
+		return DEVICE_INIT_FAILED;
 	}
 
 	stack_ctrl.qp = hfi_drv_base_info->bthqp;
@@ -943,7 +946,7 @@ static int hfi_pkt_open(int unit, uint16_t * my_lid, uint16_t * my_ctxt)
 
         //hfi_check_unit_status not currently implemented in PSM
 	//(void)hfi_check_unit_status(hfi_ctrl);	// warn up front if problems
-	return IPS_RC_OK;
+	return OK;
 }
 
 
@@ -1568,7 +1571,7 @@ static int hfi_simple_open(int unit)
 	if (stack_ctrl.file_desc == -1) {
 		_HFI_ERROR("hfi_context_open failed. Device = %d, Error = %s\n",
 			   unit, strerror(errno));
-		return IPS_RC_UNKNOWN_DEVICE;
+		return UNKNOWN_DEVICE;
 	}
 
 	memset(&hfi_drv_user_info, 0, sizeof(struct hfi1_user_info_dep));
@@ -1583,7 +1586,7 @@ static int hfi_simple_open(int unit)
 	if (hfi_simple_userinit(stack_ctrl.file_desc, &hfi_drv_user_info)) {
 		hfi_context_close(stack_ctrl.file_desc);
 		stack_ctrl.file_desc = -1;
-		return IPS_RC_DEVICE_INIT_FAILED;
+		return DEVICE_INIT_FAILED;
 	}
 
 	/*
@@ -1604,7 +1607,7 @@ static int hfi_simple_open(int unit)
 		(uint64_t *)((uintptr_t)stack_ctrl.spio_buffer_base +
 			    (stack_ctrl.spio_total_send_credits * 64));
 
-	return IPS_RC_OK;
+	return OK;
 }
 
 static void hfi_simple_close(void)
