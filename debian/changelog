@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-113-1ifs+deb9sci9+opa10.9u2) scibian9+opa10.9; urgency=medium
+
+  * New upstream release for opa10.9
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Tue, 20 Aug 2019 13:55:21 +0200
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb9sci9+opa10.9u1) scibian9+opa10.9; urgency=medium
 
   * New upstream release for opa10.9.
