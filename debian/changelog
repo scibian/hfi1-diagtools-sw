@@ -1,3 +1,10 @@
+hfi1-diagtools-sw (0.8-113-1ifs+deb8sci8+opa10.9u1) scibian8+opa10.9; urgency=medium
+
+  * New scibian8+opa10.9 release
+  * Re-scibianize package
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Tue, 20 Aug 2019 09:20:28 +0200
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb8) jessie; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-113 from IFS RHEL76 10.9.0.1.5 upstream.
