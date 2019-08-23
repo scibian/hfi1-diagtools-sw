@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-113-1ifs+deb8sci8+opa10.9u2) scibian8+opa10.9; urgency=medium
+
+  * Build only on amd64
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Fri, 23 Aug 2019 10:19:14 +0200
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb8sci8+opa10.9u1) scibian8+opa10.9; urgency=medium
 
   * New scibian8+opa10.9 release
