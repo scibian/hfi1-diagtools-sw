@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 113
+Release: 114
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -48,6 +48,9 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
+* Fri Apr 12 2019 <phcvs2@aw-bld-node-38.aw.intel.com>
+- STL-57312 Update python shebang to specific Python version for RHEL8
+
 * Tue Sep 11 2018 <kaike.wan@intel.com>
 - configvnic: Use management pkey for umad request
 
