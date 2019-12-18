@@ -1,3 +1,29 @@
+hfi1-diagtools-sw (0.8-114-1ifs+deb8sci8+opa10.9u1) scibian8+opa10.9; urgency=medium
+
+  [ Thomas HAMEL ]
+  * pristine-tar data for hfi1-diagtools-sw_0.8.68.orig.tar.gz
+  * pristine-tar data for hfi1-diagtools-sw_0.8.84.orig.tar.gz
+  * pristine-tar data for hfi1-diagtools-sw_0.8-84.orig.tar.gz
+
+  [ Nicolas Meaux ]
+  * pristine-tar data for hfi1-diagtools-sw_0.8-101.orig.tar.gz
+
+  [ M'hamed Bouaziz ]
+  * pristine-tar data for hfi1-diagtools-sw_0.8-104.orig.tar.gz
+
+  [ Thomas HAMEL ]
+  * pristine-tar data for hfi1-diagtools-sw_0.8-104.orig.tar.gz
+
+  [ M'hamed Bouaziz ]
+  * pristine-tar data for hfi1-diagtools-sw_0.8-113.orig.tar.gz
+  * Import Upstream version 0.8-114
+  * pristine-tar data for hfi1-diagtools-sw_0.8-114.orig.tar.gz
+  * scibianize control file
+
+  [ MHamed Bouaziz ]
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Wed, 18 Dec 2019 11:03:58 +0100
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb8sci8+opa10.9u2) scibian8+opa10.9; urgency=medium
 
   * Build only on amd64
