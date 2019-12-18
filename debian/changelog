@@ -1,3 +1,16 @@
+hfi1-diagtools-sw (0.8-114-1ifs+deb9sci9+opa10.9u1) scibian9+opa10.9; urgency=medium
+
+  [ M'hamed Bouaziz ]
+  * scibianization with changing maintainer and vcs sources
+  * New release 0.8-113-1ifs+deb9sci9+opa10.9u1
+  * build only for amd64
+  *  new release 0.8-113-1ifs+deb9sci9+opa10.9u2
+  * scibianize control file
+
+  [ MHamed Bouaziz ]
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Wed, 18 Dec 2019 11:11:51 +0100
+
 hfi1-diagtools-sw (0.8-113-1ifs+deb9sci9+opa10.9u2) scibian9+opa10.9; urgency=medium
 
   * New upstream release for opa10.9
