@@ -1,16 +1,14 @@
 Source: hfi1-diagtools-sw
-Maintainer: Scibian Project <packaging@scibian.org>
-Section: net
+Maintainer: Brian T. Smith <bsmith@systemfabricworks.com>
+Section: utils
 Priority: extra
 Standards-Version: 3.9.8
 Homepage: http://www.intel.com
-Vcs-Git: https://github.com/scibian/hfi1-diagtools-sw.git
-Vcs-Browser: https://github.com/scibian/hfi1-diagtools-sw
 Build-Depends: debhelper (>= 10),
                libpsm2-dev,
 
 Package: hfi1-diagtools-sw
-Architecture: amd64
+Architecture: linux-any
 Depends: pciutils,
          ${misc:Depends},
          ${shlibs:Depends},
