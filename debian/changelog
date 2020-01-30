@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-114-1ifs+deb9sci10+opa10.9u1) scibian10+opa10.9; urgency=medium
+
+  * New release for scibian10
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Thu, 30 Jan 2020 14:31:59 +0100
+
 hfi1-diagtools-sw (0.8-114-1ifs+deb9sci9+opa10.9u1) scibian9+opa10.9; urgency=medium
 
   [ M'hamed Bouaziz ]
