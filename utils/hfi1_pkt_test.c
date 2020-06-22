@@ -373,7 +373,7 @@ static void write_pio_packet(void* header, void* payload, int length)
         addr_sop[i] = src_hdr[i];
     }
 
-
+    if (!payload) return;
     /* Write the payload.  Has to be >= 8-byte writes in 64byte blocks.
        For payloads that don't round out to 64 bytes, we have to pad with 0s. */
     volatile uint64_t* addr = stack_ctrl.spio_buffer_base;
