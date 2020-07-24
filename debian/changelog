@@ -1,3 +1,13 @@
+hfi1-diagtools-sw (0.8-114-1ifs+deb9sci10opa10.10u1) scibian10opa10.10; urgency=medium
+
+  [ M'hamed Bouaziz ]
+  * scibianize control file
+  * New release version for stretch
+
+  [ MHamed Bouaziz ]
+
+ -- MHamed Bouaziz <mhamed-externe.bouaziz@edf.fr>  Fri, 24 Jul 2020 17:59:11 +0200
+
 hfi1-diagtools-sw (0.8-114-1ifs+deb9sci9opa10.10u1) scibian9opa10.10; urgency=medium
 
   [ M'hamed Bouaziz ]
