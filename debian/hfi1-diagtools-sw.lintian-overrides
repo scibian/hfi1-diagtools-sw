@@ -1,6 +1,3 @@
 # hfi1_control false positive due to extglob
 hfi1-diagtools-sw: shell-script-fails-syntax-check usr/bin/hfi1_control
-# fortify is turned on, hfi1_eprom is a false positive
-hfi1-diagtools-sw: hardening-no-fortify-functions usr/bin/hfi1_eprom
-# copyright mentions GPL, but does not specify GPL
-hfi1-diagtools-sw: copyright-should-refer-to-common-license-file-for-lgpl
+
