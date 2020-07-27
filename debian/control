@@ -10,7 +10,7 @@ Build-Depends: debhelper (>= 9),
                libpsm2-dev,
 
 Package: hfi1-diagtools-sw
-Architecture: linux-any
+Architecture: amd64
 Depends: pciutils,
          ${misc:Depends},
          ${shlibs:Depends},
@@ -18,7 +18,7 @@ Description: Intel HFI1 User Tools
  User utilities for the Intel Host Fabric Interface
 
 Package: hfi1-diagtools-sw-dbg
-Architecture: linux-any
+Architecture: amd64
 Section: debug
 Depends: hfi1-diagtools-sw (=${binary:Version}),
          ${misc:Depends},
