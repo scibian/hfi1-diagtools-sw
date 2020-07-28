@@ -8,7 +8,7 @@ Vcs-Git: https://github.com/scibian/hfi1-diagtools-sw.git
 Vcs-Browser: https://github.com/scibian/hfi1-diagtools-sw
 Build-Depends: debhelper (>= 9),
                libpsm2-dev,
-               linux-libc-dev,
+               ifs-kernel-updates-dev,
 
 Package: hfi1-diagtools-sw
 Architecture: amd64
