@@ -780,7 +780,7 @@ static int get_pkt(FILE * ifp)
     }
 
     if (!bufp) {
-        bufp = malloc(BUF_CHUNK);
+        bufp = calloc(1, BUF_CHUNK);
         if (!bufp)
             return -ENOMEM;
         bufsize = BUF_CHUNK;
@@ -1887,7 +1887,19 @@ int main(int argc, char **argv)
 	if (fname) {
 		FILE *ifp;
 		int retval;
+		struct stat fnamestat;
 
+		if (stat(fname, &fnamestat) != 0) {
+			fprintf(stderr,
+				"get_pkt input file (%s) parsing failed: failed to get file stats\n",
+				fname);
+			exit(1);
+		} else if (S_ISREG(fnamestat.st_mode) == 0) { /* Check if regular file */
+			fprintf(stderr,
+				"get_pkt input file (%s) parsing failed: Not regular file.\n",
+				fname);
+			exit(1);
+		}
 		ifp = fopen(fname, "r");
 		if (!ifp) {
 			perror(fname);

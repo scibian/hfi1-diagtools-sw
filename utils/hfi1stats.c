@@ -80,9 +80,6 @@
 #define U32_MAX (~(uint32_t)0)
 
 struct timeval udelta;
-static char *deltafmts = "+%lu seconds:\n";
-static char *deltafmtms = "+%lu.%03lu seconds:\n";
-char *deltafmt; /* set to one of above, if -c */
 int drstatfd, *devcntrfd, **portcntrfd;
 char **drstatnames, ***cntrnames, ***portcntrnames;
 int verbose, numcols = 1, nozero, autosize = 1;
@@ -572,8 +569,9 @@ int getcntr_names(int unit)
 		printf("Too many counter names (%u), skipping rest\n", cnt);
 		cnt = sizeof(names)/sizeof(names[0]);
 	}
+
 	cntrnames[unit] = malloc(cnt * sizeof(char *));
-	if(!cntrnames) {
+	if(!cntrnames[unit]) {
 		fprintf(stderr, "No memory to save %u counter names: %s\n",
 			cnt, strerror(errno));
 		return 0;
@@ -814,7 +812,7 @@ int showstats(uint64_t *prevstat, uint64_t *curstat, int nst)
 			continue;
 		}
 		if(!npr++ && prevstat)
-			printf(deltafmt, udelta.tv_sec, udelta.tv_usec/1000);
+			printf("+%lu.%03lu seconds:\n", udelta.tv_sec, udelta.tv_usec/1000);
 
 		if(prevstat) {
 			/* stats deltas can be negative, for open ports,
@@ -989,7 +987,7 @@ int showcntrs(int unit, uint64_t *prevstat, uint64_t *curstat, int ncntr, int an
 			continue;
 		}
 		if(prevstat && !any++)
-			printf(deltafmt, udelta.tv_sec, udelta.tv_usec/1000);
+			printf("+%lu.%03lu seconds:\n", udelta.tv_sec, udelta.tv_usec/1000);
 
 		if (json_format) {
 			npr++;
@@ -1138,7 +1136,7 @@ int showportcntrs(int unit, int port, uint64_t *prevstat, uint64_t *curstat,
 			continue;
 		}
 		if(prevstat && !any++)
-			printf(deltafmt, udelta.tv_sec, udelta.tv_usec/1000);
+			printf("+%lu.%03lu seconds:\n", udelta.tv_sec, udelta.tv_usec/1000);
 
 		if (json_format) {
 			npr++;
@@ -1763,8 +1761,6 @@ re_init:
 		printf("}\n"); /* Last JSON brace */
 	}
 
-	/* chosen based on -c, not on actual elapsed */
-	deltafmt = nsleep.tv_nsec == 0 ? deltafmts : deltafmtms;
 	numcols = 1;
 
 	if (changes && !nret) {
