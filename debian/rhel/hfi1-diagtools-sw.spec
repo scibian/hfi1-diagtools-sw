@@ -2,7 +2,7 @@
 Summary: Intel HFI1 User Tools
 Name: hfi1-diagtools-sw
 Version: 0.8
-Release: 114
+Release: 116
 License: GPL or BSD
 Group: System Environment/Base
 URL: http://www.intel.com/
@@ -48,6 +48,12 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/hfi-diagtools-sw/test_packets
 
 %changelog
+* Mon Feb 24 2020 <cody.j.dambrosio@intel.com>
+- STL-60252 Address checkmarx python code scan vulnerabilities (hfidiags)
+
+* Mon Feb 3 2020 <adam.goldman@intel.com>
+- STL-60141 - Fix Critical KW issues
+
 * Fri Apr 12 2019 <phcvs2@aw-bld-node-38.aw.intel.com>
 - STL-57312 Update python shebang to specific Python version for RHEL8
 

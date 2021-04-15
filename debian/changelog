@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-116-1ifs+deb9) stretch; urgency=medium
+
+   * Import hfi1-diagtools-sw 0.8-116 from IFS RHEL77 10.10.2.0.44 upstream.
+
+ -- Brian T. Smith <bsmith@systemfabricworks.com>  Mon, 22 Jun 2020 13:13:11 -0500
+
 hfi1-diagtools-sw (0.8-114-1ifs+deb9sci9opa10.10u3) scibian9+opa10.10; urgency=medium
 
   * New release version 
