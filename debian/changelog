@@ -1,3 +1,9 @@
+hfi1-diagtools-sw (0.8-116-1ifs+deb9sci9+opa10.10u1) scibian9+opa10.10; urgency=medium
+
+  * New release for scibian9+opa10.10
+
+ -- Rémi Palancher <remi-externe.palancher@edf.fr>  Thu, 15 Apr 2021 10:45:35 +0200
+
 hfi1-diagtools-sw (0.8-116-1ifs+deb9) stretch; urgency=medium
 
    * Import hfi1-diagtools-sw 0.8-116 from IFS RHEL77 10.10.2.0.44 upstream.
